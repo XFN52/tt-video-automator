@@ -64,11 +64,11 @@ void main() {
       final phrases = AiAssistantService.groupTokensIntoPhrases(tokens);
       expect(phrases.length, 2);
       expect(phrases[0].text, 'Вы когда-нибудь думали?');
-      expect(phrases[0].startTimeFormatted, '00:00:00');
-      expect(phrases[0].endTimeFormatted, '00:00:01');
+      expect(phrases[0].startTimeFormatted, '00:00:00.000');
+      expect(phrases[0].endTimeFormatted, '00:00:01.900');
       expect(phrases[1].text, 'Это важно.');
-      expect(phrases[1].startTimeFormatted, '00:00:03');
-      expect(phrases[1].endTimeFormatted, '00:00:04');
+      expect(phrases[1].startTimeFormatted, '00:00:03.000');
+      expect(phrases[1].endTimeFormatted, '00:00:04.000');
     });
   });
 }

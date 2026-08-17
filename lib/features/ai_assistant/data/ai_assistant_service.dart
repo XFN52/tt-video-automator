@@ -241,50 +241,51 @@ $transcript
     );
   }
 
-  /// Умная авто-нарезка длинного видео на смысловые серии с точной привязкой к границам предложений
+  /// Умная авто-нарезка длинного видео на смысловые серии на основе диапазонов предложений с миллисекундной точностью
   Future<List<AiCutSegment>> splitVideoIntoSegments({
     required List<SubtitleToken> tokens,
     required double totalDurationSeconds,
     int targetDurationSec = 50,
   }) async {
-    if (tokens.isEmpty || totalDurationSeconds <= 35) {
+    if (tokens.isEmpty || totalDurationSeconds <= 30) {
       return [];
     }
 
     final phrases = groupTokensIntoPhrases(tokens);
     if (phrases.isEmpty) return [];
 
-    // Составляем четкий структурированный таймлайн законченных фраз/предложений
+    // Составляем пронумерованный список фраз с длительностью
     final buffer = StringBuffer();
-    for (final p in phrases) {
-      buffer.writeln('[${p.startTimeFormatted} - ${p.endTimeFormatted}] ${p.text}');
+    for (int i = 0; i < phrases.length; i++) {
+      final p = phrases[i];
+      final dur = p.durationSec;
+      buffer.writeln('#${i + 1} [${p.startTimeFormatted} - ${p.endTimeFormatted}] ($dur сек): "${p.text}"');
     }
 
     const systemPrompt = '''
 Ты — профессиональный видеомонтажер и сценарист вирусных TikTok/Shorts/Reels сериалов.
-Твоя задача — разделить длинный транскрипт видео на логические серии/части.
+Твоя задача — объединить пронумерованные фразы длинного видео в логические серии/части.
 
-СТРОЖАЙШИЕ ПРАВИЛА НАРЕЗКИ:
-1. Каждая серия ОБЯЗАНА начинаться СТРОГО в начале фразы (start_time) и заканчиваться СТРОГО в конце законченной фразы или предложения (end_time).
-2. СТРОГО ЗАПРЕЩЕНО обрывать речь на полуслове или посреди незаконченного предложения!
-3. Каждая часть должна длиться примерно от 35 до 75 секунд (иметь законченную мысль или цепляющий клиффхэнгер).
-4. Заголовок (hook) для каждой части: ровно 3-5 слов, интригующий и кликбейтный, без кавычек и точек.
-5. Для таймкодов используй точные значения из списка фраз.
+СТРОГИЕ ПРАВИЛА:
+1. Каждая серия объединяет диапазон фраз от start_phrase до end_phrase (номера с решеткой #).
+2. Серии идут строго подряд без пропусков (серия 2 начинается со следующей фразы после серии 1).
+3. Длительность одной серии должна быть примерно от 35 до 75 секунд (суммируй секунды фраз).
+4. Каждая серия должна заканчиваться на сильной смысловой точке или клиффхэнгере.
+5. Для каждой части придумай мощный вирусный заголовок-хук (3-5 слов, без кавычек и точек).
 
-ВЕРНИ ТОЛЬКО ЧИСТЫЙ СТРОГИЙ JSON-МАССИВ БЕЗ ЛИШНЕГО ТЕКСТА И БЕЗ MARKDOWN РАЗМЕТКИ!
-Пример формата:
+ВЕРНИ ТОЛЬКО ЧИСТЫЙ СТРОГИЙ JSON-МАССИВ БЕЗ MARKDOWN:
 [
   {
     "part_number": 1,
-    "start_time": "00:00:00",
-    "end_time": "00:00:52",
+    "start_phrase": 1,
+    "end_phrase": 7,
     "hook": "ТАЙНА КАТАСТРОФЫ 1998",
-    "summary": "Введение в сюжет и завязка"
+    "summary": "Завязка истории"
   },
   {
     "part_number": 2,
-    "start_time": "00:00:52",
-    "end_time": "00:01:45",
+    "start_phrase": 8,
+    "end_phrase": 15,
     "hook": "ОН НАШЕЛ ЭТО В ЛЕСУ",
     "summary": "Кульминация находки"
   }
@@ -294,9 +295,10 @@ $transcript
     final totalFormatted = SpeechPhrase._formatMsToTime(totalDurationMs);
 
     final userPrompt = '''
-Общая длительность видео: $totalFormatted (~${totalDurationSeconds.round()} сек).
+Всего фраз в видео: ${phrases.length} шт. Общая длительность: $totalFormatted (~${totalDurationSeconds.round()} сек).
 Целевой хронометраж одной серии: ~$targetDurationSec сек.
-Таймлайн предложений:
+
+Список предложений:
 """
 ${buffer.toString()}
 """''';
@@ -304,7 +306,7 @@ ${buffer.toString()}
     final rawJson = await _chatCompletion(
       systemPrompt: systemPrompt,
       userPrompt: userPrompt,
-      temperature: 0.4,
+      temperature: 0.3,
       maxTokens: 1500,
     );
 
@@ -313,7 +315,6 @@ ${buffer.toString()}
     }
 
     try {
-      // Очищаем от возможных markdown обрамлений ```json ... ```
       String cleanJson = rawJson.trim();
       if (cleanJson.startsWith('```')) {
         cleanJson = cleanJson.replaceAll(RegExp(r'^```(json)?\n?'), '');
@@ -324,30 +325,48 @@ ${buffer.toString()}
       final decoded = jsonDecode(cleanJson);
       if (decoded is List) {
         final segments = <AiCutSegment>[];
-        String lastEndTime = '00:00:00';
+        int previousEndMs = 0;
 
         for (int i = 0; i < decoded.length; i++) {
           final item = decoded[i];
           if (item is Map<String, dynamic>) {
-            final rawStart = item['start_time'] ?? item['startTime'] ?? '';
-            final rawEnd = item['end_time'] ?? item['endTime'] ?? '';
             final rawHook = item['hook'] ?? item['title'] ?? 'Часть ${i + 1}';
             final summary = item['summary'] ?? item['description'] ?? '';
 
-            final startMs = _parseTimeToMs(rawStart.toString());
-            final endMs = _parseTimeToMs(rawEnd.toString());
+            int startMs;
+            int endMs;
 
-            // Точная привязка границ к паузам/предложениям речи
-            final snappedStart = i == 0
-                ? '00:00:00'
-                : (lastEndTime.isNotEmpty
-                    ? lastEndTime
-                    : _snapToNearestPhraseStart(startMs, phrases));
-            final snappedEnd = (i == decoded.length - 1)
-                ? SpeechPhrase._formatMsToTime(totalDurationMs)
-                : _snapToNearestPhraseEnd(endMs, phrases, totalDurationMs);
+            // Если модель указала номера фраз (start_phrase / end_phrase)
+            if (item.containsKey('start_phrase') || item.containsKey('startPhrase')) {
+              final sp = (item['start_phrase'] ?? item['startPhrase'] as num?)?.toInt() ?? 1;
+              final ep = (item['end_phrase'] ?? item['endPhrase'] as num?)?.toInt() ?? sp;
 
-            lastEndTime = snappedEnd;
+              final startIdx = (sp - 1).clamp(0, phrases.length - 1);
+              final endIdx = (ep - 1).clamp(startIdx, phrases.length - 1);
+
+              final rawStartMs = phrases[startIdx].startMs;
+              final rawEndMs = phrases[endIdx].endMs;
+
+              // Буфер 80мс для плавности начала/конца
+              startMs = i == 0 ? 0 : (rawStartMs - 80).clamp(previousEndMs, totalDurationMs);
+              endMs = (i == decoded.length - 1)
+                  ? totalDurationMs
+                  : (rawEndMs + 100).clamp(startMs + 5000, totalDurationMs);
+            } else {
+              // Fallback: если модель вернула таймкоды строками
+              final rawStart = item['start_time'] ?? item['startTime'] ?? '';
+              final rawEnd = item['end_time'] ?? item['endTime'] ?? '';
+
+              final parsedStart = _parseTimeToMs(rawStart.toString());
+              final parsedEnd = _parseTimeToMs(rawEnd.toString());
+
+              startMs = i == 0 ? 0 : _snapToNearestPhraseStartMs(parsedStart, phrases, previousEndMs);
+              endMs = (i == decoded.length - 1)
+                  ? totalDurationMs
+                  : _snapToNearestPhraseEndMs(parsedEnd, phrases, totalDurationMs);
+            }
+
+            previousEndMs = endMs;
 
             final cleanHook = rawHook
                 .toString()
@@ -357,8 +376,8 @@ ${buffer.toString()}
 
             segments.add(
               AiCutSegment(
-                startTime: snappedStart,
-                endTime: snappedEnd,
+                startTime: SpeechPhrase._formatMsToTime(startMs),
+                endTime: SpeechPhrase._formatMsToTime(endMs),
                 partNumber: i + 1,
                 hook: cleanHook,
                 summary: summary.toString().trim(),
@@ -398,8 +417,8 @@ ${buffer.toString()}
           word.endsWith('...');
 
       final hasNaturalPause =
-          !isLast && (tokens[i + 1].startMs - t.endMs >= 400);
-      final isLongPhrase = currentWords.length >= 14 &&
+          !isLast && (tokens[i + 1].startMs - t.endMs >= 350);
+      final isLongPhrase = currentWords.length >= 12 &&
           (word.endsWith(',') || hasNaturalPause);
 
       if (isLast || hasSentencePunctuation || hasNaturalPause || isLongPhrase) {
@@ -437,39 +456,36 @@ ${buffer.toString()}
     return 0;
   }
 
-  static String _snapToNearestPhraseStart(
+  static int _snapToNearestPhraseStartMs(
     int targetMs,
     List<SpeechPhrase> phrases,
+    int minStartMs,
   ) {
-    if (phrases.isEmpty) return SpeechPhrase._formatMsToTime(targetMs);
-    if (targetMs <= 1000) return '00:00:00';
+    if (phrases.isEmpty) return targetMs.clamp(minStartMs, 86400000);
+    if (targetMs <= 1000) return 0;
 
     SpeechPhrase closest = phrases.first;
     int minDiff = (phrases.first.startMs - targetMs).abs();
 
     for (final p in phrases) {
       final diff = (p.startMs - targetMs).abs();
-      if (diff < minDiff) {
+      if (diff < minDiff && p.startMs >= minStartMs) {
         minDiff = diff;
         closest = p;
       }
     }
 
-    // Если разница в пределах 7 секунд — привязываемся к началу фразы
-    if (minDiff <= 7000) {
-      return closest.startTimeFormatted;
-    }
-    return SpeechPhrase._formatMsToTime(targetMs);
+    return (closest.startMs - 60).clamp(minStartMs, 86400000);
   }
 
-  static String _snapToNearestPhraseEnd(
+  static int _snapToNearestPhraseEndMs(
     int targetMs,
     List<SpeechPhrase> phrases,
     int totalDurationMs,
   ) {
-    if (phrases.isEmpty) return SpeechPhrase._formatMsToTime(targetMs);
+    if (phrases.isEmpty) return targetMs.clamp(0, totalDurationMs);
     if ((targetMs - totalDurationMs).abs() <= 1500) {
-      return SpeechPhrase._formatMsToTime(totalDurationMs);
+      return totalDurationMs;
     }
 
     SpeechPhrase closest = phrases.first;
@@ -483,11 +499,7 @@ ${buffer.toString()}
       }
     }
 
-    // Если разница в пределах 7 секунд — привязываемся к концу фразы
-    if (minDiff <= 7000) {
-      return closest.endTimeFormatted;
-    }
-    return SpeechPhrase._formatMsToTime(targetMs);
+    return (closest.endMs + 100).clamp(0, totalDurationMs);
   }
 }
 
@@ -502,6 +514,8 @@ class SpeechPhrase {
     required this.text,
   });
 
+  int get durationSec => ((endMs - startMs) / 1000).round();
+
   String get startTimeFormatted => _formatMsToTime(startMs);
   String get endTimeFormatted => _formatMsToTime(endMs);
 
@@ -510,9 +524,11 @@ class SpeechPhrase {
     final hours = safeMs ~/ 3600000;
     final minutes = (safeMs % 3600000) ~/ 60000;
     final seconds = (safeMs % 60000) ~/ 1000;
+    final millis = safeMs % 1000;
     final h = hours.toString().padLeft(2, '0');
     final m = minutes.toString().padLeft(2, '0');
     final s = seconds.toString().padLeft(2, '0');
-    return '$h:$m:$s';
+    final msStr = millis.toString().padLeft(3, '0');
+    return '$h:$m:$s.$msStr';
   }
 }
