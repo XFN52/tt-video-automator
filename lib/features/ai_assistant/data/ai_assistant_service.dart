@@ -54,12 +54,13 @@ class AiAssistantService {
         defaultValue: true,
       );
 
-  /// Отправляет запрос к OpenAI-совместимому API chat/completions
+  /// Отправляет запрос к OpenAI-совместимому API chat/completions с автоматическими ретраями при 503/429
   Future<(String? content, String? error)> _chatCompletionDetailed({
     required String systemPrompt,
     required String userPrompt,
     double temperature = 0.7,
     int maxTokens = 1000,
+    int maxRetries = 3,
   }) async {
     if (!isConfigured) {
       return (null, 'API ключ или Base URL не настроены');
@@ -81,31 +82,54 @@ class AiAssistantService {
       'max_tokens': maxTokens,
     });
 
-    try {
-      debugPrint('AiAssistantService: Sending request to $endpoint ($model)...');
-      final response = await http
-          .post(endpoint, headers: headers, body: body)
-          .timeout(const Duration(seconds: 35));
-
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        final choices = decoded['choices'] as List?;
-        if (choices != null && choices.isNotEmpty) {
-          final content = choices.first['message']?['content'] as String?;
-          return (content?.trim(), null);
-        }
-        return (null, 'Сервер вернул пустой список choices');
-      } else {
-        final errorBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+    String? lastError;
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
         debugPrint(
-          'AiAssistantService HTTP Error ${response.statusCode}: $errorBody',
+          'AiAssistantService: Sending request to $endpoint ($model) [Попытка $attempt/$maxRetries]...',
         );
-        return (null, 'HTTP ${response.statusCode}: $errorBody');
+        final response = await http
+            .post(endpoint, headers: headers, body: body)
+            .timeout(const Duration(seconds: 35));
+
+        if (response.statusCode == 200) {
+          final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+          final choices = decoded['choices'] as List?;
+          if (choices != null && choices.isNotEmpty) {
+            final content = choices.first['message']?['content'] as String?;
+            return (content?.trim(), null);
+          }
+          return (null, 'Сервер вернул пустой список choices');
+        } else {
+          final errorBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+          lastError = 'HTTP ${response.statusCode}: $errorBody';
+          debugPrint(
+            'AiAssistantService HTTP Error ${response.statusCode} (попытка $attempt): $errorBody',
+          );
+
+          final isTransient = response.statusCode == 503 ||
+              response.statusCode == 502 ||
+              response.statusCode == 504 ||
+              response.statusCode == 429;
+          if (isTransient && attempt < maxRetries) {
+            final delaySec = attempt * 2;
+            debugPrint('AiAssistantService: Сервер временно занят (503/429). Повтор через $delaySec сек...');
+            await Future.delayed(Duration(seconds: delaySec));
+            continue;
+          }
+          return (null, lastError);
+        }
+      } catch (e) {
+        lastError = 'Ошибка сети: $e';
+        debugPrint('AiAssistantService Exception (попытка $attempt): $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+        return (null, lastError);
       }
-    } catch (e) {
-      debugPrint('AiAssistantService Exception: $e');
-      return (null, 'Ошибка сети: $e');
     }
+    return (null, lastError ?? 'Не удалось получить ответ от ИИ');
   }
 
   Future<String?> _chatCompletion({

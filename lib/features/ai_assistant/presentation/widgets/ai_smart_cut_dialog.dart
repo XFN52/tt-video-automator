@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../../core/utils/file_utils.dart';
 import '../../../subtitles/data/whisper_service.dart';
+import '../../../subtitles/domain/subtitle_token.dart';
 import '../../../tasks/domain/video_task.dart';
 import '../../../tasks/presentation/providers/task_queue_provider.dart';
 import '../../data/ai_assistant_service.dart';
@@ -30,8 +31,10 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
   String _statusMessage = '';
   double _progress = 0.0;
   List<AiCutSegment> _segments = [];
+  List<SubtitleToken>? _cachedTokens;
+  double? _cachedTotalSec;
 
-  Future<void> _startAiAnalysis() async {
+  Future<void> _startAiAnalysis({bool forceWhisper = false}) async {
     if (!AiAssistantService.instance.isConfigured) {
       final openSettings = await showDialog<bool>(
         context: context,
@@ -58,6 +61,44 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
           context: context,
           builder: (_) => const AiSettingsDialog(),
         );
+      }
+      return;
+    }
+
+    // Если токены уже есть в памяти (после Whisper) — не распознаем заново!
+    if (_cachedTokens != null && _cachedTokens!.isNotEmpty && !forceWhisper) {
+      setState(() {
+        _isAnalyzing = true;
+        _statusMessage =
+            'Повторный запрос: нейросеть ${AiAssistantService.instance.model} делит на серии...';
+        _progress = 0.75;
+        _segments = [];
+      });
+
+      try {
+        final segments = await AiAssistantService.instance.splitVideoIntoSegments(
+          tokens: _cachedTokens!,
+          totalDurationSeconds: _cachedTotalSec ?? 60.0,
+          targetDurationSec: _targetDuration,
+        );
+
+        if (mounted) {
+          setState(() {
+            _isAnalyzing = false;
+            _progress = 1.0;
+            _segments = segments;
+            _statusMessage = segments.isNotEmpty
+                ? '✅ Найдено ${segments.length} готовых серий!'
+                : '⚠️ Нейросеть не смогла разбить. Попробуйте нажать повтор или сменить модель.';
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isAnalyzing = false;
+            _statusMessage = 'Ошибка ответа ИИ: $e';
+          });
+        }
       }
       return;
     }
@@ -105,17 +146,18 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
         );
       }
 
+      final lastTokenMs = tokens.last.endMs;
+      final totalSec = lastTokenMs / 1000.0;
+      _cachedTokens = tokens;
+      _cachedTotalSec = totalSec;
+
       setState(() {
         _statusMessage =
             'Нейросеть ${AiAssistantService.instance.model} анализирует сюжет и делит на серии...';
         _progress = 0.75;
       });
 
-      // 3. Вычисление примерной длительности
-      final lastTokenMs = tokens.last.endMs;
-      final totalSec = lastTokenMs / 1000.0;
-
-      // 4. LLM нарезка
+      // 3. LLM нарезка
       final segments = await AiAssistantService.instance.splitVideoIntoSegments(
         tokens: tokens,
         totalDurationSeconds: totalSec,
@@ -129,7 +171,7 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
           _segments = segments;
           _statusMessage = segments.isNotEmpty
               ? '✅ Найдено ${segments.length} готовых серий!'
-              : '⚠️ Не удалось разделить на серии. Попробуйте изменить хронометраж.';
+              : '⚠️ Не удалось разделить на серии. Попробуйте нажать повтор.';
         });
       }
     } catch (e) {
@@ -354,12 +396,23 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
         ),
       ),
       actions: [
-        if (!_isAnalyzing && _segments.isEmpty)
+        if (!_isAnalyzing && _segments.isEmpty && _cachedTokens == null)
           FilledButton.icon(
-            onPressed: _startAiAnalysis,
+            onPressed: () => _startAiAnalysis(),
             icon: const Icon(Icons.bolt),
             label: const Text('НАЧАТЬ АНАЛИЗ И НАРАЗКУ'),
           ),
+        if (!_isAnalyzing && _segments.isEmpty && _cachedTokens != null) ...[
+          OutlinedButton(
+            onPressed: () => _startAiAnalysis(forceWhisper: true),
+            child: const Text('ПЕРЕРАСПОЗНАТЬ'),
+          ),
+          FilledButton.icon(
+            onPressed: () => _startAiAnalysis(),
+            icon: const Icon(Icons.refresh),
+            label: const Text('🔁 ПОВТОРИТЬ ЗАПРОС К ИИ'),
+          ),
+        ],
         if (_segments.isNotEmpty)
           FilledButton.icon(
             onPressed: _addAllSegmentsToQueue,

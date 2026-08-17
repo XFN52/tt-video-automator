@@ -205,35 +205,41 @@ class FfmpegFilterBuilder {
       videoStream = '[banner_v]';
     }
 
-    // --- Text Hook & Part Numbering Overlay (drawtext filter) ---
+    // --- Separate Part Numbering Badge (drawtext filter) ---
+    if (preset.autoNumbering && task.partNumber != null && fontPath.isNotEmpty) {
+      final safeFontPath = fontPath.replaceAll('\\', '/').replaceAll(':', '\\:');
+      final partLabel = 'ЧАСТЬ ${task.partNumber}';
+      filterGraphParts.add(
+        "$videoStream drawtext=fontfile='$safeFontPath':text='$partLabel':fontcolor=white:fontsize=22:box=1:boxcolor=black@0.8:boxborderw=8:borderw=1:bordercolor=white@0.6:fix_bounds=1:x=(w-text_w)/2:y=60 [part_v]",
+      );
+      videoStream = '[part_v]';
+    }
+
+    // --- Main Text Hook Overlay (drawtext filter per line) ---
     final taskHook = task.textHook?.trim() ?? '';
     final presetHook = preset.textHook?.trim() ?? '';
     final rawHook = taskHook.isNotEmpty ? taskHook : presetHook;
 
-    String displayText = rawHook;
-    if (preset.autoNumbering && task.partNumber != null) {
-      if (displayText.isNotEmpty) {
-        displayText += ' (Часть ${task.partNumber})';
-      } else {
-        displayText = 'Часть ${task.partNumber}';
-      }
-    }
-
-    if (displayText.isNotEmpty && fontPath.isNotEmpty) {
+    if (rawHook.isNotEmpty && fontPath.isNotEmpty) {
       final safeFontPath = fontPath.replaceAll('\\', '/').replaceAll(':', '\\:');
-      final wrappedText = _wrapText(displayText, maxLineChars: 28);
-      final safeText = wrappedText.replaceAll("'", "'\\''").replaceAll(':', '\\:');
-      final hookY = (preset.textHookYRatio * 1280).round().clamp(10, 1280 - 60);
+      final hookLines = _wrapIntoLines(rawHook, maxLineChars: 24);
+      final hookY = (preset.textHookYRatio * 1280).round().clamp(10, 1280 - 80);
 
-      final lines = wrappedText.split('\n');
-      final maxLineLen = lines.map((l) => l.length).reduce((a, b) => a > b ? a : b);
-      final fontSize = maxLineLen > 30 ? 20 : (maxLineLen > 22 ? 24 : 28);
+      final maxLineLen = hookLines.map((l) => l.length).reduce((a, b) => a > b ? a : b);
+      final fontSize = maxLineLen > 28 ? 22 : (maxLineLen > 20 ? 25 : 28);
+      final lineHeight = (fontSize * 1.4).round();
 
-      filterGraphParts.add(
-        "$videoStream drawtext=fontfile='$safeFontPath':text='$safeText':fontcolor=white:fontsize=$fontSize:line_spacing=6:box=1:boxcolor=black@0.65:boxborderw=8:fix_bounds=1:x=(w-text_w)/2:y=$hookY [text_v]",
-      );
-      videoStream = '[text_v]';
-    } else if (displayText.isNotEmpty && fontPath.isEmpty) {
+      for (int i = 0; i < hookLines.length; i++) {
+        final line = hookLines[i].replaceAll("'", "'\\''").replaceAll(':', '\\:');
+        final currentY = hookY + (i * lineHeight);
+        final streamOut = '[hook_v$i]';
+
+        filterGraphParts.add(
+          "$videoStream drawtext=fontfile='$safeFontPath':text='$line':fontcolor=white:fontsize=$fontSize:box=1:boxcolor=black@0.7:boxborderw=8:fix_bounds=1:x=(w-text_w)/2:y=$currentY $streamOut",
+        );
+        videoStream = streamOut;
+      }
+    } else if (rawHook.isNotEmpty && fontPath.isEmpty) {
       debugPrint('Skipping drawtext: font file unavailable');
     }
 
@@ -309,8 +315,8 @@ class FfmpegFilterBuilder {
     );
   }
 
-  static String _wrapText(String text, {int maxLineChars = 28}) {
-    if (text.length <= maxLineChars) return text;
+  static List<String> _wrapIntoLines(String text, {int maxLineChars = 24}) {
+    if (text.length <= maxLineChars) return [text];
     final words = text.split(' ');
     final lines = <String>[];
     var currentLine = '';
@@ -325,6 +331,6 @@ class FfmpegFilterBuilder {
       }
     }
     if (currentLine.isNotEmpty) lines.add(currentLine);
-    return lines.join('\n');
+    return lines;
   }
 }

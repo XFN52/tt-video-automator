@@ -140,8 +140,26 @@ void main() {
       );
 
       final fg = result.filterGraph;
-      expect(fg, contains('Индивидуальный хук ролика'));
+      expect(fg, contains('Индивидуальный хук'));
       expect(fg, isNot(contains('Пресетный заголовок')));
+    });
+
+    test('Should render Part Number as separate badge when autoNumbering is enabled', () {
+      testTask.partNumber = 3;
+      testPreset.autoNumbering = true;
+      testTask.textHook = 'ГЛАВНАЯ ОШИБКА В ДВАДЦАТЬ ЛЕТ';
+
+      final result = FfmpegFilterBuilder.buildCommand(
+        task: testTask,
+        preset: testPreset,
+        outputFilePath: 'C:/output/part_badge.mp4',
+        fontPath: 'C:/app/bold.ttf',
+      );
+
+      final fg = result.filterGraph;
+      expect(fg, contains("text='ЧАСТЬ 3'"));
+      expect(fg, contains("text='ГЛАВНАЯ ОШИБКА В'"));
+      expect(fg, contains("text='ДВАДЦАТЬ ЛЕТ'"));
     });
   });
 }
