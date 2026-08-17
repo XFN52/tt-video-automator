@@ -36,7 +36,10 @@ class BatchQueueManager {
     }
 
     _isProcessing = true;
-    debugPrint('BatchQueueManager: Mutex acquired. Starting concurrent batch (max $_maxConcurrentTasks tasks)...');
+    debugPrint(
+      'BatchQueueManager: Mutex acquired. Starting concurrent batch (max $_maxConcurrentTasks tasks) '
+      'using Preset "${preset.name}" [Whisper=${preset.useWhisper}, Banner=${preset.bannerPath ?? "нет"}, Audio=${preset.audioPath ?? "нет"}]...',
+    );
 
     try {
       // Track IDs currently being dispatched to prevent double-scheduling

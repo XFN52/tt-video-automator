@@ -128,12 +128,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       return;
     }
 
-    final selectedPreset = ref.read(selectedPresetProvider) ?? RenderPreset();
+    // Resolve active preset with reliable fallbacks to database
+    RenderPreset? selectedPreset = ref.read(selectedPresetProvider);
+    if (selectedPreset == null) {
+      final presets = ref.read(presetListProvider).valueOrNull ?? [];
+      final savedPresetId = AppSettingsService.instance
+          .getInt(AppSettingsService.keyLastSelectedPresetId);
+      if (presets.isNotEmpty) {
+        selectedPreset = (savedPresetId != null)
+            ? presets.firstWhere((p) => p.id == savedPresetId, orElse: () => presets.first)
+            : presets.first;
+      }
+      if (selectedPreset != null) {
+        ref.read(selectedPresetProvider.notifier).state = selectedPreset;
+      }
+    }
+
+    final effectivePreset = selectedPreset ?? RenderPreset();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '🚀 Запуск пакетного рендеринга ${pendingTasks.length} видео...',
+          '🚀 Запуск рендеринга ${pendingTasks.length} видео с шаблоном "${effectivePreset.name}"...',
         ),
         backgroundColor: Theme.of(context).primaryColor,
         behavior: SnackBarBehavior.floating,
@@ -142,7 +158,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     ref.read(batchQueueManagerProvider).startProcessing(
           taskNotifier: ref.read(taskQueueProvider.notifier),
-          preset: selectedPreset,
+          preset: effectivePreset,
           defaultOutputFolderPath: _outputDirectory,
         );
   }
