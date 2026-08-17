@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tt_video_automator/features/ai_assistant/data/ai_assistant_service.dart';
 import 'package:tt_video_automator/features/ai_assistant/domain/ai_cut_segment.dart';
+import 'package:tt_video_automator/features/subtitles/domain/subtitle_token.dart';
 
 void main() {
   group('AiAssistant Domain & Parsing Tests', () {
@@ -49,6 +51,24 @@ void main() {
       expect(map['start_time'], '00:00:00');
       expect(map['end_time'], '00:00:45');
       expect(map['hook'], 'ТАЙНА 1998 ГОДА');
+    });
+    test('SpeechPhrase.groupTokensIntoPhrases should group by punctuation and pauses', () {
+      final tokens = [
+        SubtitleToken(word: 'Вы', startMs: 0, endMs: 400),
+        SubtitleToken(word: 'когда-нибудь', startMs: 450, endMs: 1200),
+        SubtitleToken(word: 'думали?', startMs: 1250, endMs: 1900),
+        SubtitleToken(word: 'Это', startMs: 3000, endMs: 3400),
+        SubtitleToken(word: 'важно.', startMs: 3450, endMs: 4000),
+      ];
+
+      final phrases = AiAssistantService.groupTokensIntoPhrases(tokens);
+      expect(phrases.length, 2);
+      expect(phrases[0].text, 'Вы когда-нибудь думали?');
+      expect(phrases[0].startTimeFormatted, '00:00:00');
+      expect(phrases[0].endTimeFormatted, '00:00:01');
+      expect(phrases[1].text, 'Это важно.');
+      expect(phrases[1].startTimeFormatted, '00:00:03');
+      expect(phrases[1].endTimeFormatted, '00:00:04');
     });
   });
 }

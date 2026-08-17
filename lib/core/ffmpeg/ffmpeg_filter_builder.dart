@@ -221,11 +221,16 @@ class FfmpegFilterBuilder {
 
     if (displayText.isNotEmpty && fontPath.isNotEmpty) {
       final safeFontPath = fontPath.replaceAll('\\', '/').replaceAll(':', '\\:');
-      final safeText = displayText.replaceAll("'", "'\\''");
+      final wrappedText = _wrapText(displayText, maxLineChars: 28);
+      final safeText = wrappedText.replaceAll("'", "'\\''").replaceAll(':', '\\:');
       final hookY = (preset.textHookYRatio * 1280).round().clamp(10, 1280 - 60);
 
+      final lines = wrappedText.split('\n');
+      final maxLineLen = lines.map((l) => l.length).reduce((a, b) => a > b ? a : b);
+      final fontSize = maxLineLen > 30 ? 20 : (maxLineLen > 22 ? 24 : 28);
+
       filterGraphParts.add(
-        "$videoStream drawtext=fontfile='$safeFontPath':text='$safeText':fontcolor=white:fontsize=36:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=$hookY [text_v]",
+        "$videoStream drawtext=fontfile='$safeFontPath':text='$safeText':fontcolor=white:fontsize=$fontSize:line_spacing=6:box=1:boxcolor=black@0.65:boxborderw=8:fix_bounds=1:x=(w-text_w)/2:y=$hookY [text_v]",
       );
       videoStream = '[text_v]';
     } else if (displayText.isNotEmpty && fontPath.isEmpty) {
@@ -302,5 +307,24 @@ class FfmpegFilterBuilder {
       arguments: args,
       filterGraph: fullFilterGraph,
     );
+  }
+
+  static String _wrapText(String text, {int maxLineChars = 28}) {
+    if (text.length <= maxLineChars) return text;
+    final words = text.split(' ');
+    final lines = <String>[];
+    var currentLine = '';
+    for (final word in words) {
+      if (currentLine.isEmpty) {
+        currentLine = word;
+      } else if ((currentLine.length + 1 + word.length) <= maxLineChars) {
+        currentLine += ' $word';
+      } else {
+        lines.add(currentLine);
+        currentLine = word;
+      }
+    }
+    if (currentLine.isNotEmpty) lines.add(currentLine);
+    return lines.join('\n');
   }
 }

@@ -217,65 +217,62 @@ $transcript
     );
   }
 
-  /// Умная авто-нарезка длинного видео на смысловые серии с таймкодами
+  /// Умная авто-нарезка длинного видео на смысловые серии с точной привязкой к границам предложений
   Future<List<AiCutSegment>> splitVideoIntoSegments({
     required List<SubtitleToken> tokens,
     required double totalDurationSeconds,
     int targetDurationSec = 50,
   }) async {
-    if (tokens.isEmpty || totalDurationSeconds <= 40) {
+    if (tokens.isEmpty || totalDurationSeconds <= 35) {
       return [];
     }
 
-    // Составляем компактный таймлайн текста с шагом ~10-15 секунд
+    final phrases = groupTokensIntoPhrases(tokens);
+    if (phrases.isEmpty) return [];
+
+    // Составляем четкий структурированный таймлайн законченных фраз/предложений
     final buffer = StringBuffer();
-    for (int i = 0; i < tokens.length; i++) {
-      final t = tokens[i];
-      if (i == 0 || (t.startMs % 10000 < 500)) {
-        final sec = (t.startMs / 1000).round();
-        final mm = (sec ~/ 60).toString().padLeft(2, '0');
-        final ss = (sec % 60).toString().padLeft(2, '0');
-        buffer.write('\n[$mm:$ss] ');
-      }
-      buffer.write('${t.word} ');
+    for (final p in phrases) {
+      buffer.writeln('[${p.startTimeFormatted} - ${p.endTimeFormatted}] ${p.text}');
     }
 
     const systemPrompt = '''
-Ты — профессиональный видеомонтажер и продюсер TikTok-сериалов.
-Твоя задача — разбить транскрипт длинного видео на логические серии/части.
-Каждая часть должна:
-- Длиться примерно от 35 до 75 секунд.
-- Иметь законченную смысловую мысль или обрываться на интригующем моменте (клиффхэнгер).
-- Содержать start_time и end_time в формате HH:MM:SS (или MM:SS).
-- Содержать цепляющий заголовок (hook) для этой части.
+Ты — профессиональный видеомонтажер и сценарист вирусных TikTok/Shorts/Reels сериалов.
+Твоя задача — разделить длинный транскрипт видео на логические серии/части.
 
-ВЕРНИ ТОЛЬКО СТРОГИЙ JSON-МАССИВ БЕЗ КАКИХ-ЛИБО ДРУГИХ СЛОВ И БЕЗ MARKDOWN РАЗМЕТКИ!
+СТРОЖАЙШИЕ ПРАВИЛА НАРЕЗКИ:
+1. Каждая серия ОБЯЗАНА начинаться СТРОГО в начале фразы (start_time) и заканчиваться СТРОГО в конце законченной фразы или предложения (end_time).
+2. СТРОГО ЗАПРЕЩЕНО обрывать речь на полуслове или посреди незаконченного предложения!
+3. Каждая часть должна длиться примерно от 35 до 75 секунд (иметь законченную мысль или цепляющий клиффхэнгер).
+4. Заголовок (hook) для каждой части: ровно 3-5 слов, интригующий и кликбейтный, без кавычек и точек.
+5. Для таймкодов используй точные значения из списка фраз.
+
+ВЕРНИ ТОЛЬКО ЧИСТЫЙ СТРОГИЙ JSON-МАССИВ БЕЗ ЛИШНЕГО ТЕКСТА И БЕЗ MARKDOWN РАЗМЕТКИ!
 Пример формата:
 [
   {
     "part_number": 1,
     "start_time": "00:00:00",
-    "end_time": "00:00:48",
-    "hook": "НАЧАЛО СТРАННОЙ ИСТОРИИ",
+    "end_time": "00:00:52",
+    "hook": "ТАЙНА КАТАСТРОФЫ 1998",
     "summary": "Введение в сюжет и завязка"
   },
   {
     "part_number": 2,
-    "start_time": "00:00:48",
-    "end_time": "00:01:35",
+    "start_time": "00:00:52",
+    "end_time": "00:01:45",
     "hook": "ОН НАШЕЛ ЭТО В ЛЕСУ",
     "summary": "Кульминация находки"
   }
 ]''';
 
-    final totalSec = totalDurationSeconds.round();
-    final totalMm = (totalSec ~/ 60).toString().padLeft(2, '0');
-    final totalSs = (totalSec % 60).toString().padLeft(2, '0');
+    final totalDurationMs = (totalDurationSeconds * 1000).round();
+    final totalFormatted = SpeechPhrase._formatMsToTime(totalDurationMs);
 
     final userPrompt = '''
-Общая длительность видео: 00:$totalMm:$totalSs (~$totalSec сек).
+Общая длительность видео: $totalFormatted (~${totalDurationSeconds.round()} сек).
 Целевой хронометраж одной серии: ~$targetDurationSec сек.
-Таймлайн речи:
+Таймлайн предложений:
 """
 ${buffer.toString()}
 """''';
@@ -283,7 +280,7 @@ ${buffer.toString()}
     final rawJson = await _chatCompletion(
       systemPrompt: systemPrompt,
       userPrompt: userPrompt,
-      temperature: 0.5,
+      temperature: 0.4,
       maxTokens: 1500,
     );
 
@@ -303,10 +300,46 @@ ${buffer.toString()}
       final decoded = jsonDecode(cleanJson);
       if (decoded is List) {
         final segments = <AiCutSegment>[];
+        String lastEndTime = '00:00:00';
+
         for (int i = 0; i < decoded.length; i++) {
           final item = decoded[i];
           if (item is Map<String, dynamic>) {
-            segments.add(AiCutSegment.fromJson(item, i + 1));
+            final rawStart = item['start_time'] ?? item['startTime'] ?? '';
+            final rawEnd = item['end_time'] ?? item['endTime'] ?? '';
+            final rawHook = item['hook'] ?? item['title'] ?? 'Часть ${i + 1}';
+            final summary = item['summary'] ?? item['description'] ?? '';
+
+            final startMs = _parseTimeToMs(rawStart.toString());
+            final endMs = _parseTimeToMs(rawEnd.toString());
+
+            // Точная привязка границ к паузам/предложениям речи
+            final snappedStart = i == 0
+                ? '00:00:00'
+                : (lastEndTime.isNotEmpty
+                    ? lastEndTime
+                    : _snapToNearestPhraseStart(startMs, phrases));
+            final snappedEnd = (i == decoded.length - 1)
+                ? SpeechPhrase._formatMsToTime(totalDurationMs)
+                : _snapToNearestPhraseEnd(endMs, phrases, totalDurationMs);
+
+            lastEndTime = snappedEnd;
+
+            final cleanHook = rawHook
+                .toString()
+                .replaceAll(RegExp(r'^["«]+|["»]+$'), '')
+                .replaceAll(RegExp(r'^(Заголовок|Хук|Hook):\s*', caseSensitive: false), '')
+                .trim();
+
+            segments.add(
+              AiCutSegment(
+                startTime: snappedStart,
+                endTime: snappedEnd,
+                partNumber: i + 1,
+                hook: cleanHook,
+                summary: summary.toString().trim(),
+              ),
+            );
           }
         }
         return segments;
@@ -316,5 +349,146 @@ ${buffer.toString()}
     }
 
     return [];
+  }
+
+  /// Группирует слова в законченные фразы и предложения с точными таймкодами
+  static List<SpeechPhrase> groupTokensIntoPhrases(List<SubtitleToken> tokens) {
+    if (tokens.isEmpty) return [];
+
+    final phrases = <SpeechPhrase>[];
+    var currentWords = <String>[];
+    int phraseStartMs = tokens.first.startMs;
+    int phraseEndMs = tokens.first.endMs;
+
+    for (int i = 0; i < tokens.length; i++) {
+      final t = tokens[i];
+      currentWords.add(t.word);
+      phraseEndMs = t.endMs;
+
+      final isLast = i == tokens.length - 1;
+      final word = t.word.trim();
+      final hasSentencePunctuation = word.endsWith('.') ||
+          word.endsWith('!') ||
+          word.endsWith('?') ||
+          word.endsWith(';') ||
+          word.endsWith('...');
+
+      final hasNaturalPause =
+          !isLast && (tokens[i + 1].startMs - t.endMs >= 400);
+      final isLongPhrase = currentWords.length >= 14 &&
+          (word.endsWith(',') || hasNaturalPause);
+
+      if (isLast || hasSentencePunctuation || hasNaturalPause || isLongPhrase) {
+        phrases.add(
+          SpeechPhrase(
+            startMs: phraseStartMs,
+            endMs: phraseEndMs,
+            text: currentWords.join(' ').trim(),
+          ),
+        );
+        currentWords = [];
+        if (!isLast) {
+          phraseStartMs = tokens[i + 1].startMs;
+        }
+      }
+    }
+
+    return phrases;
+  }
+
+  static int _parseTimeToMs(String timeStr) {
+    try {
+      final parts = timeStr.trim().split(':');
+      if (parts.length == 3) {
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        final s = double.tryParse(parts[2]) ?? 0.0;
+        return ((h * 3600 + m * 60 + s) * 1000).round();
+      } else if (parts.length == 2) {
+        final m = int.tryParse(parts[0]) ?? 0;
+        final s = double.tryParse(parts[1]) ?? 0.0;
+        return ((m * 60 + s) * 1000).round();
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  static String _snapToNearestPhraseStart(
+    int targetMs,
+    List<SpeechPhrase> phrases,
+  ) {
+    if (phrases.isEmpty) return SpeechPhrase._formatMsToTime(targetMs);
+    if (targetMs <= 1000) return '00:00:00';
+
+    SpeechPhrase closest = phrases.first;
+    int minDiff = (phrases.first.startMs - targetMs).abs();
+
+    for (final p in phrases) {
+      final diff = (p.startMs - targetMs).abs();
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = p;
+      }
+    }
+
+    // Если разница в пределах 7 секунд — привязываемся к началу фразы
+    if (minDiff <= 7000) {
+      return closest.startTimeFormatted;
+    }
+    return SpeechPhrase._formatMsToTime(targetMs);
+  }
+
+  static String _snapToNearestPhraseEnd(
+    int targetMs,
+    List<SpeechPhrase> phrases,
+    int totalDurationMs,
+  ) {
+    if (phrases.isEmpty) return SpeechPhrase._formatMsToTime(targetMs);
+    if ((targetMs - totalDurationMs).abs() <= 1500) {
+      return SpeechPhrase._formatMsToTime(totalDurationMs);
+    }
+
+    SpeechPhrase closest = phrases.first;
+    int minDiff = (phrases.first.endMs - targetMs).abs();
+
+    for (final p in phrases) {
+      final diff = (p.endMs - targetMs).abs();
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = p;
+      }
+    }
+
+    // Если разница в пределах 7 секунд — привязываемся к концу фразы
+    if (minDiff <= 7000) {
+      return closest.endTimeFormatted;
+    }
+    return SpeechPhrase._formatMsToTime(targetMs);
+  }
+}
+
+class SpeechPhrase {
+  final int startMs;
+  final int endMs;
+  final String text;
+
+  const SpeechPhrase({
+    required this.startMs,
+    required this.endMs,
+    required this.text,
+  });
+
+  String get startTimeFormatted => _formatMsToTime(startMs);
+  String get endTimeFormatted => _formatMsToTime(endMs);
+
+  static String _formatMsToTime(int ms) {
+    final safeMs = ms.clamp(0, 86400000);
+    final hours = safeMs ~/ 3600000;
+    final minutes = (safeMs % 3600000) ~/ 60000;
+    final seconds = (safeMs % 60000) ~/ 1000;
+    final h = hours.toString().padLeft(2, '0');
+    final m = minutes.toString().padLeft(2, '0');
+    final s = seconds.toString().padLeft(2, '0');
+    return '$h:$m:$s';
   }
 }
