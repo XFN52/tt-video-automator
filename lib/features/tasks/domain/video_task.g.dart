@@ -57,6 +57,11 @@ const VideoTaskSchema = CollectionSchema(
       name: r'status',
       type: IsarType.byte,
       enumMap: _VideoTaskstatusEnumValueMap,
+    ),
+    r'textHook': PropertySchema(
+      id: 8,
+      name: r'textHook',
+      type: IsarType.string,
     )
   },
   estimateSize: _videoTaskEstimateSize,
@@ -99,6 +104,12 @@ int _videoTaskEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.textHook;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -116,6 +127,7 @@ void _videoTaskSerialize(
   writer.writeDouble(offsets[5], object.progress);
   writer.writeString(offsets[6], object.startTime);
   writer.writeByte(offsets[7], object.status.index);
+  writer.writeString(offsets[8], object.textHook);
 }
 
 VideoTask _videoTaskDeserialize(
@@ -136,6 +148,7 @@ VideoTask _videoTaskDeserialize(
   object.status =
       _VideoTaskstatusValueEnumMap[reader.readByteOrNull(offsets[7])] ??
           TaskStatus.pending;
+  object.textHook = reader.readStringOrNull(offsets[8]);
   return object;
 }
 
@@ -163,6 +176,8 @@ P _videoTaskDeserializeProp<P>(
     case 7:
       return (_VideoTaskstatusValueEnumMap[reader.readByteOrNull(offset)] ??
           TaskStatus.pending) as P;
+    case 8:
+      return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -1228,6 +1243,154 @@ extension VideoTaskQueryFilter
       ));
     });
   }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'textHook',
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition>
+      textHookIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'textHook',
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'textHook',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'textHook',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'textHook',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'textHook',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'textHook',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'textHook',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'textHook',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'textHook',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition> textHookIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'textHook',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterFilterCondition>
+      textHookIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'textHook',
+        value: '',
+      ));
+    });
+  }
 }
 
 extension VideoTaskQueryObject
@@ -1331,6 +1494,18 @@ extension VideoTaskQuerySortBy on QueryBuilder<VideoTask, VideoTask, QSortBy> {
   QueryBuilder<VideoTask, VideoTask, QAfterSortBy> sortByStatusDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'status', Sort.desc);
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterSortBy> sortByTextHook() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'textHook', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterSortBy> sortByTextHookDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'textHook', Sort.desc);
     });
   }
 }
@@ -1445,6 +1620,18 @@ extension VideoTaskQuerySortThenBy
       return query.addSortBy(r'status', Sort.desc);
     });
   }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterSortBy> thenByTextHook() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'textHook', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VideoTask, VideoTask, QAfterSortBy> thenByTextHookDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'textHook', Sort.desc);
+    });
+  }
 }
 
 extension VideoTaskQueryWhereDistinct
@@ -1503,6 +1690,13 @@ extension VideoTaskQueryWhereDistinct
       return query.addDistinctBy(r'status');
     });
   }
+
+  QueryBuilder<VideoTask, VideoTask, QDistinct> distinctByTextHook(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'textHook', caseSensitive: caseSensitive);
+    });
+  }
 }
 
 extension VideoTaskQueryProperty
@@ -1558,6 +1752,12 @@ extension VideoTaskQueryProperty
   QueryBuilder<VideoTask, TaskStatus, QQueryOperations> statusProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'status');
+    });
+  }
+
+  QueryBuilder<VideoTask, String?, QQueryOperations> textHookProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'textHook');
     });
   }
 }

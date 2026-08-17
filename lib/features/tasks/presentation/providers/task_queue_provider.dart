@@ -106,6 +106,30 @@ class TaskQueueNotifier extends StateNotifier<List<VideoTask>> {
     state = remaining;
   }
 
+  /// Обновление текстового хука / заголовка для конкретной задачи
+  Future<void> updateTaskHook(int taskId, String? hook) async {
+    final cleanHook = hook?.trim().isEmpty == true ? null : hook?.trim();
+    for (final task in state) {
+      if (task.id == taskId) {
+        task.textHook = cleanHook;
+        await _isarService.saveTask(task);
+      }
+    }
+    state = [...state];
+  }
+
+  /// Пакетная установка хуков: список строк по порядку применяется к задачам очереди
+  Future<void> batchSetHooks(List<String> hooks) async {
+    final currentTasks = state;
+    for (int i = 0; i < currentTasks.length; i++) {
+      final task = currentTasks[i];
+      final hook = i < hooks.length ? hooks[i].trim() : null;
+      task.textHook = (hook != null && hook.isNotEmpty) ? hook : null;
+      await _isarService.saveTask(task);
+    }
+    state = [...currentTasks];
+  }
+
   /// Удаляем только pending — задачи в работе не трогаем: трогать их
   /// опасно, т.к. процессу нужны id для обновления прогресса.
   Future<void> removePendingTasks() async {

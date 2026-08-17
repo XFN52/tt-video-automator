@@ -128,5 +128,20 @@ void main() {
       expect(fg, contains('amix=inputs=2:duration=first'));
       expect(fg, contains('volume=0.10'));
     });
+    test('Should prioritize task.textHook over preset.textHook when provided', () {
+      testPreset.textHook = 'Пресетный заголовок';
+      testTask.textHook = 'Индивидуальный хук ролика';
+
+      final result = FfmpegFilterBuilder.buildCommand(
+        task: testTask,
+        preset: testPreset,
+        outputFilePath: 'C:/output/custom_hook.mp4',
+        fontPath: 'C:/app/bold.ttf',
+      );
+
+      final fg = result.filterGraph;
+      expect(fg, contains('Индивидуальный хук ролика'));
+      expect(fg, isNot(contains('Пресетный заголовок')));
+    });
   });
 }

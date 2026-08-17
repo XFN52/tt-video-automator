@@ -285,39 +285,45 @@ class _FullPreviewEditorState extends State<FullPreviewEditor> {
                       ),
 
                       // 1. Draggable Text Hook
-                      if (widget.textHook != null && widget.textHook!.isNotEmpty)
-                        Positioned(
-                          top: (_hookY * canvasH).clamp(0.0, canvasH - 30.0),
-                          left: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onVerticalDragUpdate: (details) {
-                              setState(() {
-                                _hookY = ((_hookY * canvasH + details.delta.dy) / canvasH).clamp(0.0, 0.9);
-                              });
-                              widget.onTextHookYChanged?.call(_hookY);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withAlpha(180),
-                                border: Border.all(color: Colors.white70, width: 1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                widget.textHook!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                      Builder(
+                        builder: (context) {
+                          final hookLabel = (widget.textHook != null && widget.textHook!.isNotEmpty)
+                              ? widget.textHook!
+                              : 'ЗАГОЛОВОК ВИДЕО (ХУК)';
+                          return Positioned(
+                            top: (_hookY * canvasH).clamp(0.0, canvasH - 30.0),
+                            left: 8,
+                            right: 8,
+                            child: GestureDetector(
+                              onVerticalDragUpdate: (details) {
+                                setState(() {
+                                  _hookY = ((_hookY * canvasH + details.delta.dy) / canvasH).clamp(0.0, 0.9);
+                                });
+                                widget.onTextHookYChanged?.call(_hookY);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withAlpha(180),
+                                  border: Border.all(color: Colors.white70, width: 1),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                                child: Text(
+                                  hookLabel,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
+                      ),
 
                       // 2. Draggable Part Numbering
                       if (widget.autoNumbering)

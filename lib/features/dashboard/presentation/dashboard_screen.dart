@@ -147,6 +147,59 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         );
   }
 
+  void _showBatchHooksDialog(BuildContext context, List<VideoTask> tasks) {
+    final initialText = tasks.map((t) => t.textHook ?? '').join('\n');
+    final controller = TextEditingController(text: initialText);
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Задать заголовки/хуки списком'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Вставьте список заголовков (по 1 строке на каждое из ${tasks.length} видео):',
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  hintText: 'Заголовок для 1-го видео\nЗаголовок для 2-го видео\nЗаголовок для 3-го видео...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('ОТМЕНА'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final lines = controller.text.split('\n');
+              ref.read(taskQueueProvider.notifier).batchSetHooks(lines);
+              Navigator.pop(dialogCtx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✅ Заголовки применены к видео в очереди!'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('ПРИМЕНИТЬ'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasks = ref.watch(taskQueueProvider);
@@ -197,6 +250,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 );
               },
+            ),
+          if (tasks.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.format_list_bulleted_add),
+              tooltip: 'Задать заголовки списком',
+              onPressed: () => _showBatchHooksDialog(context, tasks),
             ),
           if (tasks.any((t) => t.status == TaskStatus.success))
             IconButton(
@@ -352,6 +411,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
               onTaskTrim: (task) {
                 context.push('/trimmer', extra: task.inputFilePath);
+              },
+              onTaskEditHook: (task, hook) {
+                ref.read(taskQueueProvider.notifier).updateTaskHook(task.id, hook);
               },
             ),
           ),

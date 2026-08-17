@@ -21,4 +21,5 @@ class VideoTask {
   String? startTime;
   String? endTime;
   int? partNumber;
+  String? textHook;
 }

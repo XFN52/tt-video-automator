@@ -7,6 +7,7 @@ class TaskItemCard extends StatelessWidget {
   final VoidCallback? onDoubleTap;
   final VoidCallback? onDelete;
   final VoidCallback? onTrim;
+  final ValueChanged<String?>? onEditHook;
 
   const TaskItemCard({
     super.key,
@@ -14,6 +15,7 @@ class TaskItemCard extends StatelessWidget {
     this.onDoubleTap,
     this.onDelete,
     this.onTrim,
+    this.onEditHook,
   });
 
   Color _getStatusColor(TaskStatus status) {
@@ -49,12 +51,68 @@ class TaskItemCard extends StatelessWidget {
     }
   }
 
+  void _showHookDialog(BuildContext context) {
+    final controller = TextEditingController(text: task.textHook ?? '');
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Текстовый хук / Заголовок видео'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Файл: ${FileUtils.getFileName(task.inputFilePath)}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Текст хука (плашка сверху)',
+                hintText: 'Например: ШОК НОВОСТЬ или СЕКРЕТ 1',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          if (task.textHook != null && task.textHook!.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                onEditHook?.call(null);
+                Navigator.of(dialogCtx).pop();
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('ОЧИСТИТЬ'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('ОТМЕНА'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = controller.text.trim();
+              onEditHook?.call(val.isEmpty ? null : val);
+              Navigator.of(dialogCtx).pop();
+            },
+            child: const Text('СОХРАНИТЬ'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fileName = FileUtils.getFileName(task.inputFilePath);
     final statusColor = _getStatusColor(task.status);
     final statusText = _getStatusText(task);
     final bool hasSegment = task.startTime != null && task.endTime != null;
+    final bool hasHook = task.textHook != null && task.textHook!.isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -120,6 +178,76 @@ class TaskItemCard extends StatelessWidget {
                                 ),
                               ),
                           ],
+                        ),
+                        // Хук / Заголовок для этого видео
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: InkWell(
+                            onTap: () => _showHookDialog(context),
+                            borderRadius: BorderRadius.circular(4),
+                            child: hasHook
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Colors.blueAccent.withValues(alpha: 0.4),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.title,
+                                          size: 12,
+                                          color: Colors.blueAccent,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            task.textHook!,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Icon(
+                                          Icons.edit,
+                                          size: 11,
+                                          color: Colors.grey,
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.add_comment_outlined,
+                                        size: 12,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '+ Заголовок / хук',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 11,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
                         ),
                       ],
                     ),

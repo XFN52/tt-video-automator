@@ -205,20 +205,30 @@ class FfmpegFilterBuilder {
       videoStream = '[banner_v]';
     }
 
-    // --- Text Hook Overlay (drawtext filter) ---
-    if (preset.textHook != null && preset.textHook!.isNotEmpty && fontPath.isNotEmpty) {
-      final safeFontPath = fontPath.replaceAll('\\', '/').replaceAll(':', '\\:');
-      var displayText = preset.textHook!;
-      if (preset.autoNumbering && task.partNumber != null) {
+    // --- Text Hook & Part Numbering Overlay (drawtext filter) ---
+    final taskHook = task.textHook?.trim() ?? '';
+    final presetHook = preset.textHook?.trim() ?? '';
+    final rawHook = taskHook.isNotEmpty ? taskHook : presetHook;
+
+    String displayText = rawHook;
+    if (preset.autoNumbering && task.partNumber != null) {
+      if (displayText.isNotEmpty) {
         displayText += ' (Часть ${task.partNumber})';
+      } else {
+        displayText = 'Часть ${task.partNumber}';
       }
+    }
+
+    if (displayText.isNotEmpty && fontPath.isNotEmpty) {
+      final safeFontPath = fontPath.replaceAll('\\', '/').replaceAll(':', '\\:');
       final safeText = displayText.replaceAll("'", "'\\''");
+      final hookY = (preset.textHookYRatio * 1280).round().clamp(10, 1280 - 60);
 
       filterGraphParts.add(
-        "$videoStream drawtext=fontfile='$safeFontPath':text='$safeText':fontcolor=white:fontsize=36:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=80 [text_v]",
+        "$videoStream drawtext=fontfile='$safeFontPath':text='$safeText':fontcolor=white:fontsize=36:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=$hookY [text_v]",
       );
       videoStream = '[text_v]';
-    } else if (preset.textHook != null && preset.textHook!.isNotEmpty && fontPath.isEmpty) {
+    } else if (displayText.isNotEmpty && fontPath.isEmpty) {
       debugPrint('Skipping drawtext: font file unavailable');
     }
 

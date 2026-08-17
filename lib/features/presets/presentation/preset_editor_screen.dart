@@ -584,7 +584,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
         ),
         const SizedBox(height: 20),
         const Text(
-          'Текстовые Крючки (Hooks) и Заголовки',
+          'Позиция Текстового Хука и Заголовка',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -597,14 +597,14 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                 TextFormField(
                   controller: _textHookController,
                   decoration: const InputDecoration(
-                    labelText: 'Текст крючка сверху',
-                    hintText: 'Например: Он не ожидал такого поворота...',
+                    labelText: 'Текст для настройки позиции на предпросмотре',
+                    hintText: 'Например: ЗАГОЛОВОК ВИДЕО (ХУК)',
                     prefixIcon: Icon(Icons.title),
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Текст будет наложен поверх верхней части видео (фильтр drawtext).',
+                  '💡 Индивидуальный заголовок для каждого ролика задаётся в очереди на главном экране (или списком). Здесь вы настраиваете положение плашки на кадре 9:16.',
                   style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],

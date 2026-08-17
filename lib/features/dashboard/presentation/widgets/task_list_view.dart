@@ -9,6 +9,7 @@ class TaskListView extends ConsumerWidget {
   final Function(VideoTask)? onTaskDoubleTap;
   final Function(VideoTask)? onTaskDelete;
   final Function(VideoTask)? onTaskTrim;
+  final void Function(VideoTask task, String? hook)? onTaskEditHook;
 
   const TaskListView({
     super.key,
@@ -16,6 +17,7 @@ class TaskListView extends ConsumerWidget {
     this.onTaskDoubleTap,
     this.onTaskDelete,
     this.onTaskTrim,
+    this.onTaskEditHook,
   });
 
   @override
@@ -72,6 +74,7 @@ class TaskListView extends ConsumerWidget {
           onDoubleTap: () => onTaskDoubleTap?.call(task),
           onDelete: () => onTaskDelete?.call(task),
           onTrim: () => onTaskTrim?.call(task),
+          onEditHook: (hook) => onTaskEditHook?.call(task, hook),
         );
       },
     );
