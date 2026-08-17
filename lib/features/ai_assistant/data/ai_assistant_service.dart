@@ -18,7 +18,11 @@ class AiAssistantService {
     final url =
         AppSettingsService.instance.getString(AppSettingsService.keyAiBaseUrl);
     if (url != null && url.trim().isNotEmpty) {
-      return url.trim().replaceAll(RegExp(r'/+$'), '');
+      var clean = url.trim().replaceAll(RegExp(r'/+$'), '');
+      if (clean.endsWith('/chat/completions')) {
+        clean = clean.substring(0, clean.length - '/chat/completions'.length);
+      }
+      return clean.replaceAll(RegExp(r'/+$'), '');
     }
     return 'https://api.deepseek.com/v1';
   }
@@ -51,15 +55,14 @@ class AiAssistantService {
       );
 
   /// Отправляет запрос к OpenAI-совместимому API chat/completions
-  Future<String?> _chatCompletion({
+  Future<(String? content, String? error)> _chatCompletionDetailed({
     required String systemPrompt,
     required String userPrompt,
     double temperature = 0.7,
     int maxTokens = 1000,
   }) async {
     if (!isConfigured) {
-      debugPrint('AiAssistantService: API key or Base URL not configured.');
-      return null;
+      return (null, 'API ключ или Base URL не настроены');
     }
 
     final endpoint = Uri.parse('$baseUrl/chat/completions');
@@ -89,17 +92,35 @@ class AiAssistantService {
         final choices = decoded['choices'] as List?;
         if (choices != null && choices.isNotEmpty) {
           final content = choices.first['message']?['content'] as String?;
-          return content?.trim();
+          return (content?.trim(), null);
         }
+        return (null, 'Сервер вернул пустой список choices');
       } else {
+        final errorBody = utf8.decode(response.bodyBytes, allowMalformed: true);
         debugPrint(
-          'AiAssistantService HTTP Error ${response.statusCode}: ${response.body}',
+          'AiAssistantService HTTP Error ${response.statusCode}: $errorBody',
         );
+        return (null, 'HTTP ${response.statusCode}: $errorBody');
       }
     } catch (e) {
       debugPrint('AiAssistantService Exception: $e');
+      return (null, 'Ошибка сети: $e');
     }
-    return null;
+  }
+
+  Future<String?> _chatCompletion({
+    required String systemPrompt,
+    required String userPrompt,
+    double temperature = 0.7,
+    int maxTokens = 1000,
+  }) async {
+    final (content, _) = await _chatCompletionDetailed(
+      systemPrompt: systemPrompt,
+      userPrompt: userPrompt,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    return content;
   }
 
   /// Проверка подключения к AI API
@@ -109,7 +130,7 @@ class AiAssistantService {
     }
 
     try {
-      final res = await _chatCompletion(
+      final (res, err) = await _chatCompletionDetailed(
         systemPrompt: 'Ответь одним словом "OK"',
         userPrompt: 'Тест связи',
         maxTokens: 10,
@@ -117,7 +138,7 @@ class AiAssistantService {
       if (res != null && res.isNotEmpty) {
         return (true, 'Связь установлена! Модель ответила: $res');
       }
-      return (false, 'Сервер не вернул ответ');
+      return (false, err ?? 'Сервер не вернул ответ');
     } catch (e) {
       return (false, 'Ошибка: $e');
     }

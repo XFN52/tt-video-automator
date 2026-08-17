@@ -61,6 +61,10 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
           _baseUrlController.text = 'https://api.deepseek.com/v1';
           _modelController.text = 'deepseek-chat';
           break;
+        case 'anymodel':
+          _baseUrlController.text = 'https://anymodel.org/v1';
+          _modelController.text = 'ag/gemini-3.7-flash-high';
+          break;
         case 'openai':
           _baseUrlController.text = 'https://api.openai.com/v1';
           _modelController.text = 'gpt-4o-mini';
@@ -180,6 +184,11 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     label: const Text('DeepSeek'),
                     selected: _selectedProvider == 'deepseek',
                     onSelected: (_) => _applyProviderPreset('deepseek'),
+                  ),
+                  ChoiceChip(
+                    label: const Text('AnyModel'),
+                    selected: _selectedProvider == 'anymodel',
+                    onSelected: (_) => _applyProviderPreset('anymodel'),
                   ),
                   ChoiceChip(
                     label: const Text('OpenAI (GPT-4o)'),
