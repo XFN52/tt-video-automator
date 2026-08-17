@@ -382,9 +382,21 @@ class WhisperService {
     _saveTokensToDiskCache(videoPath, tokens);
   }
 
+  /// Returns cached tokens from RAM or persistent disk cache if available
+  static Future<List<SubtitleToken>?> getCachedTokensForVideo(String videoPath) async {
+    if (_videoTokensCache.containsKey(videoPath) && _videoTokensCache[videoPath]!.isNotEmpty) {
+      return _videoTokensCache[videoPath];
+    }
+    return await _loadTokensFromDiskCache(videoPath);
+  }
+
   static String _diskCacheKey(String path) {
-    final sanitized = path.replaceAll(RegExp(r'[^a-zA-Z0-9_\-\.]'), '_');
-    return sanitized.length > 80 ? '${sanitized.substring(0, 40)}_${sanitized.hashCode}' : sanitized;
+    final bytes = utf8.encode(path);
+    final hash = bytes.fold<int>(0, (prev, elem) => (prev * 31 + elem) & 0x7FFFFFFF);
+    final filename = path.split(RegExp(r'[\\/]')).last;
+    final cleanName = filename.replaceAll(RegExp(r'[^\w\dа-яА-ЯёЁ\-\.]'), '_');
+    final prefix = cleanName.length > 30 ? cleanName.substring(0, 30) : cleanName;
+    return '${prefix}_$hash';
   }
 
   static Future<void> _saveTokensToDiskCache(String videoPath, List<SubtitleToken> tokens) async {
@@ -399,7 +411,10 @@ class WhisperService {
           .map((t) => {'w': t.word, 's': t.startMs, 'e': t.endMs})
           .toList();
       await cacheFile.writeAsString(jsonEncode(jsonList));
-    } catch (_) {}
+      debugPrint('WhisperService: Persisted ${tokens.length} tokens to disk cache -> ${cacheFile.path}');
+    } catch (e) {
+      debugPrint('WhisperService: Failed to save disk cache: $e');
+    }
   }
 
   static Future<List<SubtitleToken>?> _loadTokensFromDiskCache(String videoPath) async {
@@ -418,10 +433,13 @@ class WhisperService {
                   ))
               .toList();
           _videoTokensCache[videoPath] = tokens;
+          debugPrint('WhisperService: Loaded ${tokens.length} tokens from disk cache -> ${cacheFile.path}');
           return tokens;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('WhisperService: Failed to load disk cache: $e');
+    }
     return null;
   }
 

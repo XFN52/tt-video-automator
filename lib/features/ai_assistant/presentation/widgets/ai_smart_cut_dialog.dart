@@ -65,42 +65,53 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
       return;
     }
 
-    // Если токены уже есть в памяти (после Whisper) — не распознаем заново!
-    if (_cachedTokens != null && _cachedTokens!.isNotEmpty && !forceWhisper) {
-      setState(() {
-        _isAnalyzing = true;
-        _statusMessage =
-            'Повторный запрос: нейросеть ${AiAssistantService.instance.model} делит на серии...';
-        _progress = 0.75;
-        _segments = [];
-      });
-
-      try {
-        final segments = await AiAssistantService.instance.splitVideoIntoSegments(
-          tokens: _cachedTokens!,
-          totalDurationSeconds: _cachedTotalSec ?? 60.0,
-          targetDurationSec: _targetDuration,
-        );
-
-        if (mounted) {
-          setState(() {
-            _isAnalyzing = false;
-            _progress = 1.0;
-            _segments = segments;
-            _statusMessage = segments.isNotEmpty
-                ? '✅ Найдено ${segments.length} готовых серий!'
-                : '⚠️ Нейросеть не смогла разбить. Попробуйте нажать повтор или сменить модель.';
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _isAnalyzing = false;
-            _statusMessage = 'Ошибка ответа ИИ: $e';
-          });
+    // 0. Проверяем кэш (RAM или Диск): если видео уже транскрибировалось — используем сразу без Whisper!
+    if (!forceWhisper) {
+      var tokens = _cachedTokens;
+      if (tokens == null || tokens.isEmpty) {
+        tokens = await WhisperService.getCachedTokensForVideo(widget.initialVideoPath);
+        if (tokens != null && tokens.isNotEmpty) {
+          _cachedTokens = tokens;
+          _cachedTotalSec = tokens.last.endMs / 1000.0;
         }
       }
-      return;
+
+      if (tokens != null && tokens.isNotEmpty) {
+        setState(() {
+          _isAnalyzing = true;
+          _statusMessage =
+              'Мгновенный старт из кэша (${tokens!.length} слов): нейросеть ${AiAssistantService.instance.model} делит на серии...';
+          _progress = 0.75;
+          _segments = [];
+        });
+
+        try {
+          final segments = await AiAssistantService.instance.splitVideoIntoSegments(
+            tokens: tokens,
+            totalDurationSeconds: _cachedTotalSec ?? (tokens.last.endMs / 1000.0),
+            targetDurationSec: _targetDuration,
+          );
+
+          if (mounted) {
+            setState(() {
+              _isAnalyzing = false;
+              _progress = 1.0;
+              _segments = segments;
+              _statusMessage = segments.isNotEmpty
+                  ? '✅ Найдено ${segments.length} готовых серий!'
+                  : '⚠️ Нейросеть не смогла разбить. Попробуйте сменить модель или целевую длительность.';
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isAnalyzing = false;
+              _statusMessage = 'Ошибка ответа ИИ: $e';
+            });
+          }
+        }
+        return;
+      }
     }
 
     setState(() {
