@@ -374,6 +374,13 @@ class WhisperService {
     }
   }
 
+  static final Map<String, List<SubtitleToken>> _videoTokensCache = {};
+
+  /// Caches recognized tokens for a full video to eliminate duplicate Whisper runs when rendering parts
+  static void cacheTokensForVideo(String videoPath, List<SubtitleToken> tokens) {
+    _videoTokensCache[videoPath] = tokens;
+  }
+
   /// End-to-end pipeline: Extracts audio, runs transcription, builds ASS file,
   /// and saves the resulting .ass subtitle file in TemporaryDirectory.
   Future<WhisperResult?> generateSubtitlesForTask({
@@ -385,6 +392,50 @@ class WhisperService {
       final tempDir = await getTemporaryDirectory();
       final wavPath = '${tempDir.path}/task_${task.id}_audio.wav';
       final assPath = '${tempDir.path}/task_${task.id}_subtitles.ass';
+
+      // 0. Instant Cache Check: If full video was already transcribed (e.g. via AI Smart Cut), reuse tokens!
+      if (_videoTokensCache.containsKey(task.inputFilePath)) {
+        final fullTokens = _videoTokensCache[task.inputFilePath]!;
+        final startMs = _parseTimeToMs(task.startTime ?? '');
+        final endMs = task.endTime != null && task.endTime!.isNotEmpty
+            ? _parseTimeToMs(task.endTime!)
+            : 86400000;
+
+        final slicedTokens = <SubtitleToken>[];
+        for (final t in fullTokens) {
+          if (t.endMs >= startMs && t.startMs <= endMs) {
+            final relStart = (t.startMs - startMs).clamp(0, 86400000);
+            final relEnd = (t.endMs - startMs).clamp(relStart, 86400000);
+            slicedTokens.add(
+              SubtitleToken(
+                word: t.word,
+                startMs: relStart,
+                endMs: relEnd,
+              ),
+            );
+          }
+        }
+
+        if (slicedTokens.isNotEmpty) {
+          debugPrint('Task #${task.id}: Reusing ${slicedTokens.length} cached Whisper tokens (0s Whisper time)!');
+          onProgress?.call(0.24, 'Мгновенное создание караоке-субтитров из кэша...');
+          final speedFactor = 1.0 + (preset?.speedDelta ?? 0.0);
+          final generatedAss = await AssFileWriter.generateAssFile(
+            tokens: slicedTokens,
+            outputPath: assPath,
+            position: preset?.subtitlePosition ?? SubtitlePosition.bottom,
+            yRatio: preset?.subtitleYRatio,
+            speedFactor: speedFactor,
+          );
+          final transcript = slicedTokens.map((t) => t.word).join(' ').trim();
+
+          return WhisperResult(
+            assPath: generatedAss,
+            transcript: transcript,
+            tokens: slicedTokens,
+          );
+        }
+      }
 
       // 1. Extract audio
       onProgress?.call(0.05, 'Извлечение звуковой дорожки...');
@@ -445,5 +496,23 @@ class WhisperService {
     } catch (e) {
       debugPrint('cleanupTaskTempFiles failed: $e');
     }
+  }
+
+  static int _parseTimeToMs(String timeStr) {
+    if (timeStr.isEmpty) return 0;
+    try {
+      final parts = timeStr.trim().split(':');
+      if (parts.length == 3) {
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        final s = double.tryParse(parts[2]) ?? 0.0;
+        return ((h * 3600 + m * 60 + s) * 1000).round();
+      } else if (parts.length == 2) {
+        final m = int.tryParse(parts[0]) ?? 0;
+        final s = double.tryParse(parts[1]) ?? 0.0;
+        return ((m * 60 + s) * 1000).round();
+      }
+    } catch (_) {}
+    return 0;
   }
 }

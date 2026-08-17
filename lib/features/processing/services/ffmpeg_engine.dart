@@ -192,11 +192,12 @@ class FfmpegEngine {
       final timeRegex = RegExp(r'time=(\d+):(\d+):(\d+\.\d+)');
 
       String? firstError;
-      process.stderr
+      await for (final line in process.stderr
           .transform(const Utf8Decoder(allowMalformed: true))
-          .transform(const LineSplitter())
-          .listen((line) {
-        logSink.writeln(line);
+          .transform(const LineSplitter())) {
+        try {
+          logSink.writeln(line);
+        } catch (_) {}
         final isErrorish = line.startsWith('Error') ||
             line.startsWith('Invalid') ||
             line.contains('Conversion failed') ||
@@ -218,7 +219,7 @@ class FfmpegEngine {
           final progress = (currentMs / totalMs).clamp(0.0, 0.99);
           onProgress(progress);
         }
-      });
+      }
 
       final exitCode = await process.exitCode;
       return (exitCode, firstError);

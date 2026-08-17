@@ -150,6 +150,7 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
       final totalSec = lastTokenMs / 1000.0;
       _cachedTokens = tokens;
       _cachedTotalSec = totalSec;
+      WhisperService.cacheTokensForVideo(widget.initialVideoPath, tokens);
 
       setState(() {
         _statusMessage =
