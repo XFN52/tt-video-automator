@@ -242,11 +242,36 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 controller: _modelController,
                 decoration: const InputDecoration(
                   labelText: 'Имя модели',
-                  hintText: 'deepseek-chat, gpt-4o-mini, llama3',
+                  hintText: 'ag/gemini-2.5-flash, deepseek-chat, gpt-4o-mini',
                   prefixIcon: Icon(Icons.psychology),
                   border: OutlineInputBorder(),
                 ),
               ),
+              if (_selectedProvider == 'anymodel') ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    ActionChip(
+                      label: const Text('gemini-2.5-flash', style: TextStyle(fontSize: 11)),
+                      onPressed: () => setState(() => _modelController.text = 'ag/gemini-2.5-flash'),
+                    ),
+                    ActionChip(
+                      label: const Text('gemini-3.7-flash', style: TextStyle(fontSize: 11)),
+                      onPressed: () => setState(() => _modelController.text = 'ag/gemini-3.7-flash-high'),
+                    ),
+                    ActionChip(
+                      label: const Text('gpt-4o-mini', style: TextStyle(fontSize: 11)),
+                      onPressed: () => setState(() => _modelController.text = 'am/gpt-4o-mini'),
+                    ),
+                    ActionChip(
+                      label: const Text('deepseek-v3', style: TextStyle(fontSize: 11)),
+                      onPressed: () => setState(() => _modelController.text = 'am/deepseek-v3'),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 14),
               const Divider(),
               const SizedBox(height: 6),

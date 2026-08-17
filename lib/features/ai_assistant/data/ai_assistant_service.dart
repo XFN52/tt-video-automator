@@ -60,7 +60,8 @@ class AiAssistantService {
     required String userPrompt,
     double temperature = 0.7,
     int maxTokens = 1000,
-    int maxRetries = 3,
+    int maxRetries = 4,
+    Duration timeout = const Duration(seconds: 90),
   }) async {
     if (!isConfigured) {
       return (null, 'API ключ или Base URL не настроены');
@@ -86,11 +87,11 @@ class AiAssistantService {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         debugPrint(
-          'AiAssistantService: Sending request to $endpoint ($model) [Попытка $attempt/$maxRetries]...',
+          'AiAssistantService: Sending request to $endpoint ($model) [Попытка $attempt/$maxRetries, таймаут ${timeout.inSeconds}с]...',
         );
         final response = await http
             .post(endpoint, headers: headers, body: body)
-            .timeout(const Duration(seconds: 35));
+            .timeout(timeout);
 
         if (response.statusCode == 200) {
           final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -112,8 +113,15 @@ class AiAssistantService {
               response.statusCode == 504 ||
               response.statusCode == 429;
           if (isTransient && attempt < maxRetries) {
-            final delaySec = attempt * 2;
-            debugPrint('AiAssistantService: Сервер временно занят (503/429). Повтор через $delaySec сек...');
+            int delaySec = attempt * 3;
+            try {
+              final errJson = jsonDecode(errorBody);
+              final serverRetry = (errJson['error']?['retry_after_seconds'] as num?)?.toInt();
+              if (serverRetry != null && serverRetry > 0) {
+                delaySec = serverRetry + 1;
+              }
+            } catch (_) {}
+            debugPrint('AiAssistantService: Сервер временно занят (${response.statusCode}). Ожидание $delaySec сек перед повтором...');
             await Future.delayed(Duration(seconds: delaySec));
             continue;
           }
@@ -123,7 +131,8 @@ class AiAssistantService {
         lastError = 'Ошибка сети: $e';
         debugPrint('AiAssistantService Exception (попытка $attempt): $e');
         if (attempt < maxRetries) {
-          await Future.delayed(Duration(seconds: attempt * 2));
+          final delaySec = attempt * 3;
+          await Future.delayed(Duration(seconds: delaySec));
           continue;
         }
         return (null, lastError);
@@ -137,12 +146,14 @@ class AiAssistantService {
     required String userPrompt,
     double temperature = 0.7,
     int maxTokens = 1000,
+    Duration timeout = const Duration(seconds: 90),
   }) async {
     final (content, _) = await _chatCompletionDetailed(
       systemPrompt: systemPrompt,
       userPrompt: userPrompt,
       temperature: temperature,
       maxTokens: maxTokens,
+      timeout: timeout,
     );
     return content;
   }
@@ -337,11 +348,17 @@ $modeDesc
 ${buffer.toString()}
 """''';
 
+    final dynamicMaxTokens = (phrases.length * 15).clamp(1800, 4096);
+    final dynamicTimeout = totalDurationSeconds > 600
+        ? const Duration(seconds: 120)
+        : const Duration(seconds: 60);
+
     final rawJson = await _chatCompletion(
       systemPrompt: systemPrompt,
       userPrompt: userPrompt,
       temperature: 0.3,
-      maxTokens: 1500,
+      maxTokens: dynamicMaxTokens,
+      timeout: dynamicTimeout,
     );
 
     if (rawJson == null || rawJson.isEmpty) {
