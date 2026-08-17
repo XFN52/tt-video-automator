@@ -1,0 +1,278 @@
+# ==============================================================================
+# Flutter / Dart Build & Dependency Artifacts
+# ==============================================================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.metadata
+lcov.info
+*.lcov
+*.gcov
+
+# Symbolication & Obfuscation
+app.*.symbols
+app.*.map.json
+
+# ==============================================================================
+# Windows C++, CMake & Visual Studio Build Artifacts
+# ==============================================================================
+.vs/
+windows/flutter/ephemeral/
+*.vcxproj.user
+*.vcxproj.filters.user
+*.vcxproj.userosv
+*.vcxproj.user.*
+*.vcxproj.id
+*.vcxproj.resolveAssemblyReference.cache
+*.suo
+*.user
+*.userosv
+*.userprefs
+*.sln.docstates
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.VC.aps
+*.tlog
+*.ipch
+*.obj
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.exp
+*.lib
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+x64/
+x86/
+arm64/
+Debug/
+Release/
+bin/
+obj/
+
+# ==============================================================================
+# Android, iOS, macOS & Linux Platform Build Artifacts & Signing Keys
+# ==============================================================================
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/app/build/
+/android/build/
+/android/.gradle/
+.gradle/
+.kotlin/
+.cxx/
+android/.cxx/
+android/app/.cxx/
+/android/local.properties
+/android/key.properties
+key.properties
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.key
+*.pem
+/android/captures/
+/android/gradlew
+/android/gradlew.bat
+*.apk
+*.aab
+*.hprof
+ios/.symlinks/
+ios/Pods/
+ios/Podfile.lock
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/Podfile.lock
+macos/Flutter/Generated.xcconfig
+linux/flutter/ephemeral/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+
+# ==============================================================================
+# Installers, Bundles & Distribution Packages
+# ==============================================================================
+dist/
+installers/
+publish/
+*.msix
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.AppImage
+
+# ==============================================================================
+# Local Databases, App Settings & State Files
+# ==============================================================================
+*.isar
+*.isar.lock
+*.db
+*.sqlite
+*.sqlite3
+app_settings.json
+
+# ==============================================================================
+# Render Outputs, Temporary Chunks & Cache Folders
+# ==============================================================================
+output/
+outputs/
+export/
+exports/
+rendered/
+tasks_output/
+temp/
+tmp/
+thumb_*.jpg
+task_*_audio.wav
+task_*_subtitles.ass
+
+# ==============================================================================
+# Media, Whisper AI Models, Standalone Binaries & Heavy Test Artifacts
+# ==============================================================================
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.wmv
+*.flv
+*.mp3
+*.wav
+*.aac
+*.flac
+*.ogg
+*.m4a
+*.ass
+*.srt
+*.vtt
+*.bin
+*.zip
+*.7z
+*.rar
+*.tar.gz
+*.tar
+ffmpeg.exe
+ffprobe.exe
+whisper-cli.exe
+whisper.dll
+cublas*.dll
+cudart*.dll
+test_whisper*
+test_whisper_extracted/
+debug_info/
+scratch/
+
+# ==============================================================================
+# Markdown Reports & Workspace Logs (Except README)
+# ==============================================================================
+*.md
+!README.md
+!readme.md
+!README*.md
+
+# ==============================================================================
+# IDEs, AI Assistants & Text Editors
+# ==============================================================================
+# JetBrains (IntelliJ, Android Studio)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# AI Assistants
+.cursor/
+.windsurf/
+.cline/
+.agents/
+.gemini/
+
+# Eclipse / Sublime / Other
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.atom/
+
+# ==============================================================================
+# Python & Node Artifacts
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==============================================================================
+# Operating System Junk, Crash Dumps, Patches & Temporary Files
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+*.dmp
+*.dump
+*.stackdump
+hs_err_pid*.log
+replay_pid*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+*.log
+*.patch
+*.diff
+
+# ==============================================================================
+# External Tools (Codex Proxy) & Environment Secrets
+# ==============================================================================
+codex_proxy/
+.env
+.env.*
+*.local
