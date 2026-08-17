@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/utils/file_utils.dart';
+import '../../ai_assistant/presentation/widgets/ai_smart_cut_dialog.dart';
 import '../../tasks/domain/video_task.dart';
 import '../../tasks/presentation/providers/task_queue_provider.dart';
 import 'widgets/video_timeline.dart';
@@ -246,6 +247,21 @@ class _TrimmerScreenState extends ConsumerState<TrimmerScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high, color: Color(0xFF25F4EE)),
+            tooltip: '🤖 ИИ Авто-нарезка на серии',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => AiSmartCutDialog(
+                  initialVideoPath: widget.videoPath,
+                  outputDirectory: '',
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

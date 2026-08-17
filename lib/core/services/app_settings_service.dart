@@ -21,6 +21,14 @@ class AppSettingsService {
   static const String keyLastGameplayDirectory = 'lastGameplayDirectory';
   static const String keyLastSelectedPresetId = 'lastSelectedPresetId';
 
+  // AI Assistant Keys
+  static const String keyAiApiKey = 'ai_api_key';
+  static const String keyAiBaseUrl = 'ai_base_url';
+  static const String keyAiModel = 'ai_model';
+  static const String keyAiProvider = 'ai_provider';
+  static const String keyAiAutoGenerateHooks = 'ai_auto_hooks';
+  static const String keyAiAutoGeneratePosts = 'ai_auto_posts';
+
   Future<void> init() async {
     if (_initialized) return;
     try {
@@ -45,6 +53,9 @@ class AppSettingsService {
 
   int? getInt(String key) => _cache[key] as int?;
 
+  bool getBool(String key, {bool defaultValue = false}) =>
+      (_cache[key] as bool?) ?? defaultValue;
+
   /// Возвращает путь к директории, только если она реально существует на диске.
   String? getExistingDirectory(String key) {
     final path = getString(key);
@@ -60,6 +71,11 @@ class AppSettingsService {
   }
 
   Future<void> setInt(String key, int value) async {
+    _cache[key] = value;
+    await _save();
+  }
+
+  Future<void> setBool(String key, bool value) async {
     _cache[key] = value;
     await _save();
   }

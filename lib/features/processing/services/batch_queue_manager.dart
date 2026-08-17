@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../../ai_assistant/data/ai_assistant_service.dart';
 import '../../presets/domain/render_preset.dart';
 import '../../subtitles/data/whisper_service.dart';
 import '../../tasks/domain/video_task.dart';
@@ -147,10 +148,12 @@ class BatchQueueManager {
 
     // --- Phase 1: Whisper AI Karaoke Subtitle Generation ---
     String? subtitleAssPath;
+    String? transcriptText;
+
     if (preset.useWhisper) {
       debugPrint('Task #${task.id}: Starting Whisper AI transcription...');
       try {
-        subtitleAssPath = await _whisperService.generateSubtitlesForTask(
+        final whisperResult = await _whisperService.generateSubtitlesForTask(
           task: task,
           preset: preset,
           onProgress: (progress, statusMsg) {
@@ -161,9 +164,35 @@ class BatchQueueManager {
             );
           },
         );
+        if (whisperResult != null) {
+          subtitleAssPath = whisperResult.assPath;
+          transcriptText = whisperResult.transcript;
+        }
         debugPrint('Task #${task.id}: Whisper transcription complete.');
       } catch (e) {
         debugPrint('Task #${task.id}: Subtitle generation warning (continuing without subs): $e');
+      }
+    }
+
+    // --- Phase 1.5: AI Viral Hook Generation (if hook is empty) ---
+    if ((task.textHook == null || task.textHook!.trim().isEmpty) &&
+        transcriptText != null &&
+        transcriptText.isNotEmpty &&
+        AiAssistantService.instance.isConfigured &&
+        AiAssistantService.instance.isAutoHooksEnabled) {
+      try {
+        debugPrint('Task #${task.id}: AI Generating viral hook from speech transcript...');
+        final aiHook = await AiAssistantService.instance.generateHook(
+          transcript: transcriptText,
+          videoTitle: fileNameWithoutExt,
+        );
+        if (aiHook != null && aiHook.isNotEmpty) {
+          task.textHook = aiHook;
+          await taskNotifier.updateTaskHook(task.id, aiHook);
+          debugPrint('Task #${task.id}: AI Hook applied → "$aiHook"');
+        }
+      } catch (e) {
+        debugPrint('Task #${task.id}: AI Hook generation error (ignored): $e');
       }
     }
 
@@ -187,10 +216,33 @@ class BatchQueueManager {
       },
     );
 
-    // --- Final Status Update ---
+    // --- Final Status Update & Phase 3 (AI Post Generation) ---
     if (renderError == null) {
       debugPrint('Task #${task.id}: Render SUCCESS → $outputFilePath');
       await taskNotifier.updateTaskProgress(task.id, 1.0, TaskStatus.success);
+
+      // --- Phase 3: AI Post / Description / Hashtags (.txt) ---
+      if (transcriptText != null &&
+          transcriptText.isNotEmpty &&
+          AiAssistantService.instance.isConfigured &&
+          AiAssistantService.instance.isAutoPostsEnabled) {
+        try {
+          final postText = await AiAssistantService.instance.generatePostDescription(
+            transcript: transcriptText,
+            partNumber: task.partNumber,
+            videoTitle: fileNameWithoutExt,
+          );
+          if (postText != null && postText.isNotEmpty) {
+            final postFilePath = '${dir.path}/$fileNameWithoutExt${partSuffix}_post.txt';
+            final postFile = File(postFilePath);
+            final fullContent = '=== ЗАГОЛОВОК / ХУК ===\n${task.textHook ?? "—"}\n\n=== ТЕКСТ ПОСТА ДЛЯ ПУБЛИКАЦИИ ===\n$postText\n';
+            await postFile.writeAsString(fullContent);
+            debugPrint('Task #${task.id}: AI Post description saved → $postFilePath');
+          }
+        } catch (e) {
+          debugPrint('Task #${task.id}: AI Post saving error (ignored): $e');
+        }
+      }
     } else {
       debugPrint('Task #${task.id}: Render FAILED: $renderError');
       await taskNotifier.updateTaskProgress(

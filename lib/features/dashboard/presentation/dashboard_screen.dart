@@ -9,9 +9,13 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/utils/file_utils.dart';
 import '../../../core/services/app_settings_service.dart';
+import '../../ai_assistant/data/ai_assistant_service.dart';
+import '../../ai_assistant/presentation/ai_settings_dialog.dart';
+import '../../ai_assistant/presentation/widgets/ai_smart_cut_dialog.dart';
 import '../../presets/domain/render_preset.dart';
 import '../../presets/presentation/providers/preset_provider.dart';
 import '../../processing/providers/processing_provider.dart';
+import '../../subtitles/data/whisper_service.dart';
 import '../../tasks/domain/video_task.dart';
 import '../../tasks/presentation/providers/task_queue_provider.dart';
 import 'widgets/task_list_view.dart';
@@ -66,6 +70,118 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ref
           .read(taskQueueProvider.notifier)
           .addTasksFromPaths(paths, _outputDirectory);
+    }
+  }
+
+  Future<void> _pickAndSmartCut() async {
+    final initialDir = AppSettingsService.instance
+        .getExistingDirectory(AppSettingsService.keyLastInputVideoDirectory);
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: ['mp4', 'mov', 'mkv', 'avi'],
+      initialDirectory: initialDir,
+    );
+
+    if (result != null && result.paths.isNotEmpty && result.paths.first != null) {
+      final path = result.paths.first!;
+      await AppSettingsService.instance.rememberParentDirectoryForFile(
+        AppSettingsService.keyLastInputVideoDirectory,
+        path,
+      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AiSmartCutDialog(
+            initialVideoPath: path,
+            outputDirectory: _outputDirectory,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _generateAiHooksForQueue(List<VideoTask> tasks) async {
+    if (!AiAssistantService.instance.isConfigured) {
+      final openSettings = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('ИИ не настроен'),
+          content: const Text(
+            'Для авто-генерации хуков требуется указать API ключ нейросети (DeepSeek, OpenAI или Ollama).\n\nОткрыть настройки?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ОТМЕНА'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('НАСТРОЙКИ'),
+            ),
+          ],
+        ),
+      );
+      if (openSettings == true && mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => const AiSettingsDialog(),
+        );
+      }
+      return;
+    }
+
+    final targetTasks = tasks
+        .where((t) => t.status == TaskStatus.pending && (t.textHook == null || t.textHook!.trim().isEmpty))
+        .toList();
+
+    if (targetTasks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ℹ️ У всех задач в очереди уже заданы заголовки.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🤖 Генерация хуков через ИИ для ${targetTasks.length} видео...'),
+        backgroundColor: const Color(0xFF25F4EE),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    int generatedCount = 0;
+    final whisper = WhisperService();
+
+    for (final task in targetTasks) {
+      try {
+        final whisperResult = await whisper.generateSubtitlesForTask(task: task);
+        if (whisperResult != null && whisperResult.transcript.isNotEmpty) {
+          final hook = await AiAssistantService.instance.generateHook(
+            transcript: whisperResult.transcript,
+            videoTitle: FileUtils.getFileName(task.inputFilePath),
+          );
+          if (hook != null && hook.isNotEmpty) {
+            await ref.read(taskQueueProvider.notifier).updateTaskHook(task.id, hook);
+            generatedCount++;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error generating hook for task ${task.id}: $e');
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Сгенерировано $generatedCount хуков через ИИ!'),
+          backgroundColor: Theme.of(context).primaryColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -269,6 +385,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           if (tasks.isNotEmpty)
             IconButton(
+              icon: const Icon(Icons.auto_awesome, color: Color(0xFF25F4EE)),
+              tooltip: '🤖 Сгенерировать хуки через ИИ для очереди',
+              onPressed: () => _generateAiHooksForQueue(tasks),
+            ),
+          if (tasks.isNotEmpty)
+            IconButton(
               icon: const Icon(Icons.format_list_bulleted_add),
               tooltip: 'Задать заголовки списком',
               onPressed: () => _showBatchHooksDialog(context, tasks),
@@ -281,6 +403,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ref.read(taskQueueProvider.notifier).clearCompletedTasks();
               },
             ),
+          IconButton(
+            icon: const Icon(Icons.smart_toy_outlined),
+            tooltip: 'Настройки ИИ (LLM)',
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const AiSettingsDialog(),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.tune),
             tooltip: 'Редактор Шаблонов',
@@ -403,10 +533,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: _pickFiles,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Выбрать файлы'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _pickFiles,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Выбрать файлы'),
+                              ),
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                onPressed: _pickAndSmartCut,
+                                icon: const Icon(Icons.auto_fix_high, color: Color(0xFFFE2C55)),
+                                label: const Text('🤖 ИИ Нарезка'),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFFFE2C55)),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

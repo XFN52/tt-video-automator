@@ -18,6 +18,18 @@ enum WhisperModelType {
   largeV3Turbo,
 }
 
+class WhisperResult {
+  final String? assPath;
+  final String transcript;
+  final List<SubtitleToken> tokens;
+
+  const WhisperResult({
+    this.assPath,
+    this.transcript = '',
+    this.tokens = const [],
+  });
+}
+
 class WhisperService {
   static const Map<WhisperModelType, String> _modelUrls = {
     WhisperModelType.tiny:
@@ -364,7 +376,7 @@ class WhisperService {
 
   /// End-to-end pipeline: Extracts audio, runs transcription, builds ASS file,
   /// and saves the resulting .ass subtitle file in TemporaryDirectory.
-  Future<String?> generateSubtitlesForTask({
+  Future<WhisperResult?> generateSubtitlesForTask({
     required VideoTask task,
     RenderPreset? preset,
     void Function(double progress, String statusMsg)? onProgress,
@@ -397,6 +409,8 @@ class WhisperService {
       );
       if (tokens.isEmpty) return null;
 
+      final transcript = tokens.map((t) => t.word).join(' ').trim();
+
       // 4. Save ASS file to TemporaryDirectory
       onProgress?.call(0.24, 'Создание караоке-субтитров...');
       final speedFactor = 1.0 + (preset?.speedDelta ?? 0.0);
@@ -408,7 +422,11 @@ class WhisperService {
         speedFactor: speedFactor,
       );
 
-      return generatedAss;
+      return WhisperResult(
+        assPath: generatedAss,
+        transcript: transcript,
+        tokens: tokens,
+      );
     } catch (e, stack) {
       debugPrint('Error generating subtitles for task ${task.id}: $e\n$stack');
       return null;
