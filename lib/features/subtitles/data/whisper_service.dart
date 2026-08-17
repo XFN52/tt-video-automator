@@ -376,9 +376,53 @@ class WhisperService {
 
   static final Map<String, List<SubtitleToken>> _videoTokensCache = {};
 
-  /// Caches recognized tokens for a full video to eliminate duplicate Whisper runs when rendering parts
+  /// Caches recognized tokens for a video in memory and persists to disk cache
   static void cacheTokensForVideo(String videoPath, List<SubtitleToken> tokens) {
     _videoTokensCache[videoPath] = tokens;
+    _saveTokensToDiskCache(videoPath, tokens);
+  }
+
+  static String _diskCacheKey(String path) {
+    final sanitized = path.replaceAll(RegExp(r'[^a-zA-Z0-9_\-\.]'), '_');
+    return sanitized.length > 80 ? '${sanitized.substring(0, 40)}_${sanitized.hashCode}' : sanitized;
+  }
+
+  static Future<void> _saveTokensToDiskCache(String videoPath, List<SubtitleToken> tokens) async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${docDir.path}/whisper_cache');
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+      final cacheFile = File('${cacheDir.path}/${_diskCacheKey(videoPath)}.json');
+      final jsonList = tokens
+          .map((t) => {'w': t.word, 's': t.startMs, 'e': t.endMs})
+          .toList();
+      await cacheFile.writeAsString(jsonEncode(jsonList));
+    } catch (_) {}
+  }
+
+  static Future<List<SubtitleToken>?> _loadTokensFromDiskCache(String videoPath) async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final cacheFile = File('${docDir.path}/whisper_cache/${_diskCacheKey(videoPath)}.json');
+      if (await cacheFile.exists()) {
+        final content = await cacheFile.readAsString();
+        final decoded = jsonDecode(content) as List?;
+        if (decoded != null && decoded.isNotEmpty) {
+          final tokens = decoded
+              .map((item) => SubtitleToken(
+                    word: item['w'] as String? ?? '',
+                    startMs: (item['s'] as num?)?.toInt() ?? 0,
+                    endMs: (item['e'] as num?)?.toInt() ?? 0,
+                  ))
+              .toList();
+          _videoTokensCache[videoPath] = tokens;
+          return tokens;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// End-to-end pipeline: Extracts audio, runs transcription, builds ASS file,
@@ -393,19 +437,29 @@ class WhisperService {
       final wavPath = '${tempDir.path}/task_${task.id}_audio.wav';
       final assPath = '${tempDir.path}/task_${task.id}_subtitles.ass';
 
-      // 0. Instant Cache Check: If full video was already transcribed (e.g. via AI Smart Cut), reuse tokens!
-      if (_videoTokensCache.containsKey(task.inputFilePath)) {
-        final fullTokens = _videoTokensCache[task.inputFilePath]!;
-        final startMs = _parseTimeToMs(task.startTime ?? '');
-        final endMs = task.endTime != null && task.endTime!.isNotEmpty
-            ? _parseTimeToMs(task.endTime!)
-            : 86400000;
+      // 0. Instant Cache Check (RAM or Disk) for full video or exact slice:
+      List<SubtitleToken>? fullTokens = _videoTokensCache[task.inputFilePath] ??
+          await _loadTokensFromDiskCache(task.inputFilePath);
+
+      // Check slice-specific cache if not full
+      final sliceKey = '${task.inputFilePath}#${task.startTime}_${task.endTime}';
+      fullTokens ??= _videoTokensCache[sliceKey] ??
+          await _loadTokensFromDiskCache(sliceKey);
+
+      if (fullTokens != null && fullTokens.isNotEmpty) {
+        final isTrimmed = task.startTime != null &&
+            task.startTime!.isNotEmpty &&
+            task.endTime != null &&
+            task.endTime!.isNotEmpty;
+
+        final startMs = isTrimmed ? _parseTimeToMs(task.startTime!) : 0;
+        final endMs = isTrimmed ? _parseTimeToMs(task.endTime!) : 86400000;
 
         final slicedTokens = <SubtitleToken>[];
         for (final t in fullTokens) {
           if (t.endMs >= startMs && t.startMs <= endMs) {
-            final relStart = (t.startMs - startMs).clamp(0, 86400000);
-            final relEnd = (t.endMs - startMs).clamp(relStart, 86400000);
+            final relStart = isTrimmed ? (t.startMs - startMs).clamp(0, 86400000) : t.startMs;
+            final relEnd = isTrimmed ? (t.endMs - startMs).clamp(relStart, 86400000) : t.endMs;
             slicedTokens.add(
               SubtitleToken(
                 word: t.word,
@@ -416,25 +470,24 @@ class WhisperService {
           }
         }
 
-        if (slicedTokens.isNotEmpty) {
-          debugPrint('Task #${task.id}: Reusing ${slicedTokens.length} cached Whisper tokens (0s Whisper time)!');
-          onProgress?.call(0.24, 'Мгновенное создание караоке-субтитров из кэша...');
-          final speedFactor = 1.0 + (preset?.speedDelta ?? 0.0);
-          final generatedAss = await AssFileWriter.generateAssFile(
-            tokens: slicedTokens,
-            outputPath: assPath,
-            position: preset?.subtitlePosition ?? SubtitlePosition.bottom,
-            yRatio: preset?.subtitleYRatio,
-            speedFactor: speedFactor,
-          );
-          final transcript = slicedTokens.map((t) => t.word).join(' ').trim();
+        final effectiveTokens = slicedTokens.isNotEmpty ? slicedTokens : fullTokens;
+        debugPrint('Task #${task.id}: Reusing ${effectiveTokens.length} cached Whisper tokens (0s Whisper time)!');
+        onProgress?.call(0.24, 'Мгновенное создание караоке-субтитров из кэша...');
+        final speedFactor = 1.0 + (preset?.speedDelta ?? 0.0);
+        final generatedAss = await AssFileWriter.generateAssFile(
+          tokens: effectiveTokens,
+          outputPath: assPath,
+          position: preset?.subtitlePosition ?? SubtitlePosition.bottom,
+          yRatio: preset?.subtitleYRatio,
+          speedFactor: speedFactor,
+        );
+        final transcript = effectiveTokens.map((t) => t.word).join(' ').trim();
 
-          return WhisperResult(
-            assPath: generatedAss,
-            transcript: transcript,
-            tokens: slicedTokens,
-          );
-        }
+        return WhisperResult(
+          assPath: generatedAss,
+          transcript: transcript,
+          tokens: effectiveTokens,
+        );
       }
 
       // 1. Extract audio
@@ -459,6 +512,13 @@ class WhisperService {
         modelPath: modelPath,
       );
       if (tokens.isEmpty) return null;
+
+      // 3.5. Cache recognized tokens globally (RAM + Disk) for instant future re-use!
+      if (task.startTime == null || task.startTime!.isEmpty) {
+        cacheTokensForVideo(task.inputFilePath, tokens);
+      } else {
+        cacheTokensForVideo(sliceKey, tokens);
+      }
 
       final transcript = tokens.map((t) => t.word).join(' ').trim();
 
