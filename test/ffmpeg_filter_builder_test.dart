@@ -161,5 +161,22 @@ void main() {
       expect(fg, contains("text='ГЛАВНАЯ ОШИБКА В'"));
       expect(fg, contains("text='ДВАДЦАТЬ ЛЕТ'"));
     });
+
+    test('Should apply smooth cinematic outro video fade and audio afade on trimmed tasks', () {
+      testTask.startTime = '00:00:00.000';
+      testTask.endTime = '00:00:50.000';
+
+      final result = FfmpegFilterBuilder.buildCommand(
+        task: testTask,
+        preset: testPreset,
+        outputFilePath: 'C:/output/fade_test.mp4',
+        fontPath: 'C:/app/bold.ttf',
+      );
+
+      final fg = result.filterGraph;
+      expect(fg, contains('fade=t=out'));
+      expect(fg, contains('afade=t=in:ss=0:d=0.08'));
+      expect(fg, contains('afade=t=out'));
+    });
   });
 }

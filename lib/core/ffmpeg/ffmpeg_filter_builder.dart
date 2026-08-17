@@ -263,6 +263,31 @@ class FfmpegFilterBuilder {
       audioStream = '[final_a]';
     }
 
+    // --- Smooth Outro & Intro Fades (Cinematic Fade-Out & Audio Smoothing) ---
+    if (hasTrim) {
+      final startSec = _parseTimeToSeconds(task.startTime!);
+      final endSec = _parseTimeToSeconds(task.endTime!);
+      final rawDuration = endSec - startSec;
+      if (rawDuration > 3.0) {
+        final speedFactor = 1.0 + preset.speedDelta;
+        final outputDuration = rawDuration / speedFactor;
+        final fadeOutStart = (outputDuration - 0.40).clamp(0.1, outputDuration);
+        final audioFadeOutStart = (outputDuration - 0.50).clamp(0.1, outputDuration);
+
+        // Video fade to black at the end
+        filterGraphParts.add(
+          "$videoStream fade=t=out:st=${fadeOutStart.toStringAsFixed(2)}:d=0.40 [faded_v]",
+        );
+        videoStream = '[faded_v]';
+
+        // Audio smooth micro-fade-in at start + smooth fade-out at end
+        filterGraphParts.add(
+          "$audioStream afade=t=in:ss=0:d=0.08,afade=t=out:st=${audioFadeOutStart.toStringAsFixed(2)}:d=0.50 [faded_a]",
+        );
+        audioStream = '[faded_a]';
+      }
+    }
+
     // --- Final Graph Execution ---
     final fullFilterGraph = filterGraphParts.join(';');
 
@@ -332,5 +357,23 @@ class FfmpegFilterBuilder {
     }
     if (currentLine.isNotEmpty) lines.add(currentLine);
     return lines;
+  }
+
+  static double _parseTimeToSeconds(String timeStr) {
+    if (timeStr.isEmpty) return 0.0;
+    try {
+      final parts = timeStr.trim().split(':');
+      if (parts.length == 3) {
+        final h = double.tryParse(parts[0]) ?? 0.0;
+        final m = double.tryParse(parts[1]) ?? 0.0;
+        final s = double.tryParse(parts[2]) ?? 0.0;
+        return h * 3600 + m * 60 + s;
+      } else if (parts.length == 2) {
+        final m = double.tryParse(parts[0]) ?? 0.0;
+        final s = double.tryParse(parts[1]) ?? 0.0;
+        return m * 60 + s;
+      }
+    } catch (_) {}
+    return 0.0;
   }
 }
