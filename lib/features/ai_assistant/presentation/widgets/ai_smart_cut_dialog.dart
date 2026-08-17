@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import '../../../../core/utils/file_utils.dart';
 import '../../../subtitles/data/whisper_service.dart';
 import '../../../subtitles/domain/subtitle_token.dart';
@@ -151,30 +152,69 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
         modelPath: modelPath,
       );
 
-      if (tokens.isEmpty) {
-        throw Exception(
-          'В видео не обнаружено распознаваемой речи для смысловой нарезки.',
+      List<AiCutSegment> segments;
+
+      if (tokens.isNotEmpty) {
+        final lastTokenMs = tokens.last.endMs;
+        final totalSec = lastTokenMs / 1000.0;
+        _cachedTokens = tokens;
+        _cachedTotalSec = totalSec;
+        WhisperService.cacheTokensForVideo(widget.initialVideoPath, tokens);
+
+        setState(() {
+          _statusMessage =
+              'Нейросеть ${AiAssistantService.instance.model} анализирует сюжет и делит на серии...';
+          _progress = 0.75;
+        });
+
+        // 3. LLM нарезка по речи
+        segments = await AiAssistantService.instance.splitVideoIntoSegments(
+          tokens: tokens,
+          totalDurationSeconds: totalSec,
+          targetDurationSec: _targetDuration,
+        );
+      } else {
+        // Fallback: умная нарезка по длительности видео + генерация хуков через нейросеть
+        setState(() {
+          _statusMessage = 'Определение длительности видео...';
+          _progress = 0.55;
+        });
+
+        double totalSec = 60.0;
+        try {
+          if (Platform.isWindows) {
+            final res = await Process.run('ffprobe', [
+              '-v', 'error',
+              '-show_entries', 'format=duration',
+              '-of', 'default=noprint_wrappers=1:nokey=1',
+              widget.initialVideoPath,
+            ]);
+            if (res.exitCode == 0) {
+              totalSec = double.tryParse((res.stdout as String).trim()) ?? 60.0;
+            }
+          } else {
+            final session = await FFprobeKit.getMediaInformation(widget.initialVideoPath);
+            final info = session.getMediaInformation();
+            if (info != null && info.getDuration() != null) {
+              totalSec = double.tryParse(info.getDuration()!) ?? 60.0;
+            }
+          }
+        } catch (e) {
+          debugPrint('Duration probe fallback: $e');
+        }
+
+        setState(() {
+          _statusMessage =
+              'Нейросеть ${AiAssistantService.instance.model} генерирует интригующие хуки для серий...';
+          _progress = 0.8;
+        });
+
+        segments = await AiAssistantService.instance.splitByDurationWithAiHooks(
+          videoFileName: FileUtils.getFileName(widget.initialVideoPath),
+          totalDurationSeconds: totalSec,
+          targetDurationSec: _targetDuration == 0 ? 45 : _targetDuration,
         );
       }
-
-      final lastTokenMs = tokens.last.endMs;
-      final totalSec = lastTokenMs / 1000.0;
-      _cachedTokens = tokens;
-      _cachedTotalSec = totalSec;
-      WhisperService.cacheTokensForVideo(widget.initialVideoPath, tokens);
-
-      setState(() {
-        _statusMessage =
-            'Нейросеть ${AiAssistantService.instance.model} анализирует сюжет и делит на серии...';
-        _progress = 0.75;
-      });
-
-      // 3. LLM нарезка
-      final segments = await AiAssistantService.instance.splitVideoIntoSegments(
-        tokens: tokens,
-        totalDurationSeconds: totalSec,
-        targetDurationSec: _targetDuration,
-      );
 
       if (mounted) {
         setState(() {
@@ -233,11 +273,18 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
     final fileName = FileUtils.getFileName(widget.initialVideoPath);
 
     return AlertDialog(
+      actionsOverflowButtonSpacing: 8,
+      actionsOverflowDirection: VerticalDirection.down,
       title: const Row(
         children: [
           Icon(Icons.auto_fix_high, color: Color(0xFFFE2C55)),
           SizedBox(width: 10),
-          Text('ИИ Умная Авто-Нарезка на Серии'),
+          Expanded(
+            child: Text(
+              'ИИ Авто-Нарезка на Серии',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       content: SizedBox(
@@ -279,14 +326,7 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
                 runSpacing: 6,
                 children: [
                   ChoiceChip(
-                    label: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.whatshot, size: 16, color: Color(0xFFFE2C55)),
-                        SizedBox(width: 5),
-                        Text('🔥 Авто-Клиффхэнгер (Пик интриги)'),
-                      ],
-                    ),
+                    label: const Text('🔥 Авто-Клиффхэнгер'),
                     selected: _targetDuration == 0,
                     onSelected: _isAnalyzing
                         ? null

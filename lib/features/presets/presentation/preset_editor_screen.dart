@@ -49,6 +49,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
   late double _textHookYRatio;
   late double _numberingYRatio;
   late double _subtitleYRatio;
+  bool _isPreviewDragging = false;
 
   @override
   void initState() {
@@ -64,26 +65,26 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
     _colorDelta = p?.colorDelta ?? 0.03;
     _noiseLevel = p?.noiseLevel ?? 1.0;
     _bannerPath = p?.bannerPath;
-    _bannerPosition = p?.bannerPosition ?? BannerPosition.bottom;
+    _bannerPosition = p?.bannerPosition ?? BannerPosition.top;
     _bannerXRatio = p?.bannerXRatio ?? 0.0;
-    _bannerYRatio = p?.bannerYRatio ?? (p?.bannerPosition == BannerPosition.top ? 0.08 : 0.844);
+    _bannerYRatio = p?.bannerYRatio ?? 0.122;
     _bannerWidthRatio = p?.bannerWidthRatio ?? 1.0;
-    _bannerHeightRatio = p?.bannerHeightRatio ?? 0.156;
+    _bannerHeightRatio = p?.bannerHeightRatio ?? 0.161;
     _textHookController = TextEditingController(text: p?.textHook ?? '');
     _autoNumbering = p?.autoNumbering ?? true;
     _audioPath = p?.audioPath;
-    _useWhisper = p?.useWhisper ?? false;
+    _useWhisper = p?.useWhisper ?? true;
     _subtitlePosition = p?.subtitlePosition ?? SubtitlePosition.bottom;
     _audioVolume = p?.audioVolume ?? 0.08;
-    _textHookYRatio = p?.textHookYRatio ?? 0.04;
-    _numberingYRatio = p?.numberingYRatio ?? 0.12;
+    _textHookYRatio = p?.textHookYRatio ?? 0.686;
+    _numberingYRatio = p?.numberingYRatio ?? 0.033;
     _subtitleYRatio = p?.subtitleYRatio ??
         // Конвертируем enum в коэффициент для обратной совместимости со
         // старыми шаблонами в БД.
         switch (_subtitlePosition) {
           SubtitlePosition.top => 0.15,
           SubtitlePosition.center => 0.5,
-          SubtitlePosition.bottom => 0.75,
+          SubtitlePosition.bottom => 0.877,
         };
   }
 
@@ -249,12 +250,16 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
 
   Future<void> _pickAudioDirectory() async {
     if (Platform.isAndroid || Platform.isIOS) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Выбор папки недоступен на мобильном. Скопируйте треки в папку приложения.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Выберите фоновый MP3 / аудио трек',
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg'],
       );
+      if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
+        setState(() {
+          _audioPath = result.files.first.path!;
+        });
+      }
       return;
     }
 
@@ -416,10 +421,13 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Изменение скорости видео и аудио:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    const Expanded(
+                      child: Text(
+                        'Изменение скорости видео и аудио:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '${_speedDelta >= 0 ? '+' : ''}$speedPercent%',
                       style: TextStyle(
@@ -458,10 +466,13 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Цветовая коррекция (Яркость / Контраст):',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    const Expanded(
+                      child: Text(
+                        'Цветовая коррекция (Яркость / Контраст):',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '±$colorPercent%',
                       style: TextStyle(
@@ -500,10 +511,13 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Уровень невидимого цифрового шума:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    const Expanded(
+                      child: Text(
+                        'Уровень невидимого цифрового шума:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '${_noiseLevel.toStringAsFixed(1)} / 5.0',
                       style: TextStyle(
@@ -669,6 +683,9 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
         : 'Он не ожидал такого поворота...';
 
     return ListView(
+      physics: _isPreviewDragging
+          ? const NeverScrollableScrollPhysics()
+          : const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16.0),
       children: [
         const Text(
@@ -710,6 +727,11 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
           showSubtitles: _useWhisper,
           subtitleYRatio: _subtitleYRatio,
           onSubtitleYChanged: (v) => setState(() => _subtitleYRatio = v),
+          onDragStateChanged: (isDragging) {
+            if (_isPreviewDragging != isDragging) {
+              setState(() => _isPreviewDragging = isDragging);
+            }
+          },
         ),
         const SizedBox(height: 16),
         Card(
@@ -808,10 +830,13 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Громкость фоновой музыки:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    const Expanded(
+                      child: Text(
+                        'Громкость фоновой музыки:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '$volumePercent%',
                       style: TextStyle(
@@ -965,6 +990,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
             Expanded(
               child: TabBarView(
                 controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   // Tab 1: Basis
                   _buildBasisTab(),

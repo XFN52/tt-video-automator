@@ -9,6 +9,7 @@ class TaskListView extends ConsumerWidget {
   final Function(VideoTask)? onTaskDoubleTap;
   final Function(VideoTask)? onTaskDelete;
   final Function(VideoTask)? onTaskTrim;
+  final Function(VideoTask)? onTaskAiSmartCut;
   final void Function(VideoTask task, String? hook)? onTaskEditHook;
 
   const TaskListView({
@@ -17,6 +18,7 @@ class TaskListView extends ConsumerWidget {
     this.onTaskDoubleTap,
     this.onTaskDelete,
     this.onTaskTrim,
+    this.onTaskAiSmartCut,
     this.onTaskEditHook,
   });
 
@@ -74,6 +76,7 @@ class TaskListView extends ConsumerWidget {
           onDoubleTap: () => onTaskDoubleTap?.call(task),
           onDelete: () => onTaskDelete?.call(task),
           onTrim: () => onTaskTrim?.call(task),
+          onAiSmartCut: () => onTaskAiSmartCut?.call(task),
           onEditHook: (hook) => onTaskEditHook?.call(task, hook),
         );
       },

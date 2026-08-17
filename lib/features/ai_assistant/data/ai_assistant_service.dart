@@ -552,6 +552,79 @@ ${buffer.toString()}
 
     return (closest.endMs + 100).clamp(0, totalDurationMs);
   }
+
+  /// Делит видео по целевой длительности и генерирует вирусные хуки через LLM
+  Future<List<AiCutSegment>> splitByDurationWithAiHooks({
+    required String videoFileName,
+    required double totalDurationSeconds,
+    required int targetDurationSec,
+  }) async {
+    final stepSec = targetDurationSec > 0 ? targetDurationSec : 45;
+    final count = (totalDurationSeconds / stepSec).ceil().clamp(1, 20);
+    final actualDurationPerPart = totalDurationSeconds / count;
+
+    final baseSegments = <AiCutSegment>[];
+    for (int i = 0; i < count; i++) {
+      final start = i * actualDurationPerPart;
+      final end = (i == count - 1) ? totalDurationSeconds : (i + 1) * actualDurationPerPart;
+      baseSegments.add(AiCutSegment(
+        startTime: SpeechPhrase._formatMsToTime((start * 1000).round()),
+        endTime: SpeechPhrase._formatMsToTime((end * 1000).round()),
+        partNumber: i + 1,
+        hook: 'Часть ${i + 1}',
+        summary: 'Серия ${i + 1} из $count',
+      ));
+    }
+
+    if (isConfigured) {
+      try {
+        final prompt = '''
+Видео называется: "$videoFileName".
+Общая длительность: ${(totalDurationSeconds / 60).toStringAsFixed(1)} мин.
+Оно нарезано на $count серий.
+
+Придумай $count цепляющих, интригующих хуков для TikTok/Shorts (по одному хуку для каждой части от 1 до $count).
+Формат ответа СТРОГО JSON-массив:
+[
+  {"part": 1, "hook": "Текст хука 1"},
+  {"part": 2, "hook": "Текст хука 2"}
+]
+''';
+
+        final (response, _) = await _chatCompletionDetailed(
+          systemPrompt: 'Ты топовый эксперт по вирусным видео в TikTok и Shorts. Отвечай только валидным JSON-массивом.',
+          userPrompt: prompt,
+        );
+
+        if (response != null && response.isNotEmpty) {
+          final jsonClean = response.replaceAll(RegExp(r'```json|```'), '').trim();
+          final decoded = jsonDecode(jsonClean) as List?;
+          if (decoded != null) {
+            for (final item in decoded) {
+              if (item is Map<String, dynamic>) {
+                final partNum = (item['part'] as num?)?.toInt();
+                final hookText = item['hook']?.toString().trim();
+                if (partNum != null && hookText != null && partNum >= 1 && partNum <= baseSegments.length) {
+                  final seg = baseSegments[partNum - 1];
+                  baseSegments[partNum - 1] = AiCutSegment(
+                    startTime: seg.startTime,
+                    endTime: seg.endTime,
+                    partNumber: seg.partNumber,
+                    hook: hookText,
+                    summary: seg.summary,
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to generate AI hooks for duration cut: $e');
+      }
+    }
+
+    return baseSegments;
+  }
 }
 
 class SpeechPhrase {

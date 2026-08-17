@@ -28,6 +28,8 @@ class FullPreviewEditor extends StatefulWidget {
   final double subtitleYRatio;
   final ValueChanged<double>? onSubtitleYChanged;
 
+  final ValueChanged<bool>? onDragStateChanged;
+
   const FullPreviewEditor({
     super.key,
     this.previewVideoPath,
@@ -46,6 +48,7 @@ class FullPreviewEditor extends StatefulWidget {
     this.showSubtitles = false,
     this.subtitleYRatio = 0.75,
     this.onSubtitleYChanged,
+    this.onDragStateChanged,
   });
 
   @override
@@ -294,10 +297,14 @@ class _FullPreviewEditorState extends State<FullPreviewEditor> {
                             top: (_hookY * canvasH).clamp(0.0, canvasH - 30.0),
                             left: 8,
                             right: 8,
-                            child: GestureDetector(
-                              onVerticalDragUpdate: (details) {
+                            child: Listener(
+                              behavior: HitTestBehavior.opaque,
+                              onPointerDown: (_) => widget.onDragStateChanged?.call(true),
+                              onPointerUp: (_) => widget.onDragStateChanged?.call(false),
+                              onPointerCancel: (_) => widget.onDragStateChanged?.call(false),
+                              onPointerMove: (event) {
                                 setState(() {
-                                  _hookY = ((_hookY * canvasH + details.delta.dy) / canvasH).clamp(0.0, 0.9);
+                                  _hookY = (_hookY + event.delta.dy / canvasH).clamp(0.0, 0.9);
                                 });
                                 widget.onTextHookYChanged?.call(_hookY);
                               },
@@ -331,10 +338,14 @@ class _FullPreviewEditorState extends State<FullPreviewEditor> {
                           top: (_numY * canvasH).clamp(0.0, canvasH - 24.0),
                           left: canvasW * 0.2,
                           right: canvasW * 0.2,
-                          child: GestureDetector(
-                            onVerticalDragUpdate: (details) {
+                          child: Listener(
+                            behavior: HitTestBehavior.opaque,
+                            onPointerDown: (_) => widget.onDragStateChanged?.call(true),
+                            onPointerUp: (_) => widget.onDragStateChanged?.call(false),
+                            onPointerCancel: (_) => widget.onDragStateChanged?.call(false),
+                            onPointerMove: (event) {
                               setState(() {
-                                _numY = ((_numY * canvasH + details.delta.dy) / canvasH).clamp(0.0, 0.9);
+                                _numY = (_numY + event.delta.dy / canvasH).clamp(0.0, 0.9);
                               });
                               widget.onNumberingYChanged?.call(_numY);
                             },
@@ -364,10 +375,14 @@ class _FullPreviewEditorState extends State<FullPreviewEditor> {
                           top: (_subY * canvasH).clamp(0.0, canvasH - 26.0),
                           left: 12,
                           right: 12,
-                          child: GestureDetector(
-                            onVerticalDragUpdate: (details) {
+                          child: Listener(
+                            behavior: HitTestBehavior.opaque,
+                            onPointerDown: (_) => widget.onDragStateChanged?.call(true),
+                            onPointerUp: (_) => widget.onDragStateChanged?.call(false),
+                            onPointerCancel: (_) => widget.onDragStateChanged?.call(false),
+                            onPointerMove: (event) {
                               setState(() {
-                                _subY = ((_subY * canvasH + details.delta.dy) / canvasH).clamp(0.0, 0.9);
+                                _subY = (_subY + event.delta.dy / canvasH).clamp(0.0, 0.9);
                               });
                               widget.onSubtitleYChanged?.call(_subY);
                             },
@@ -397,110 +412,123 @@ class _FullPreviewEditorState extends State<FullPreviewEditor> {
                         top: bannerTop,
                         width: bannerWidth,
                         height: bannerHeight,
-                        child: GestureDetector(
-                          onPanUpdate: (details) {
-                            setState(() {
-                              _bX = ((bannerLeft + details.delta.dx) / canvasW)
-                                  .clamp(0.0, 1.0 - _bW);
-                              _bY = ((bannerTop + details.delta.dy) / canvasH)
-                                  .clamp(0.0, 1.0 - _bH);
-                            });
-                            _notifyBanner();
-                          },
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: hasBannerFile
-                                      ? Colors.transparent
-                                      : Colors.blue.withAlpha(77),
-                                  border: Border.all(color: Colors.blueAccent, width: 2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child: hasBannerFile
-                                      ? (isVideoBanner
-                                          ? Container(
-                                              color: Colors.black54,
-                                              alignment: Alignment.center,
-                                              child: const Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(Icons.movie, color: Colors.white70, size: 16),
-                                                  SizedBox(height: 2),
-                                                  Text(
-                                                    'Видео-плашка',
-                                                    style: TextStyle(
-                                                      color: Colors.white70,
-                                                      fontSize: 8,
-                                                      fontWeight: FontWeight.bold,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned.fill(
+                              child: Listener(
+                                behavior: HitTestBehavior.opaque,
+                                onPointerDown: (_) => widget.onDragStateChanged?.call(true),
+                                onPointerUp: (_) => widget.onDragStateChanged?.call(false),
+                                onPointerCancel: (_) => widget.onDragStateChanged?.call(false),
+                                onPointerMove: (event) {
+                                  setState(() {
+                                    final maxBX = (1.0 - _bW).clamp(0.0, 1.0);
+                                    final maxBY = (1.0 - _bH).clamp(0.0, 1.0);
+                                    _bX = (_bX + event.delta.dx / canvasW).clamp(0.0, maxBX);
+                                    _bY = (_bY + event.delta.dy / canvasH).clamp(0.0, maxBY);
+                                  });
+                                  _notifyBanner();
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: hasBannerFile
+                                        ? Colors.black26
+                                        : Colors.blue.withAlpha(77),
+                                    border: Border.all(color: Colors.blueAccent, width: 2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(2),
+                                    child: hasBannerFile
+                                        ? (isVideoBanner
+                                            ? Container(
+                                                color: Colors.black54,
+                                                alignment: Alignment.center,
+                                                child: const Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(Icons.movie, color: Colors.white70, size: 16),
+                                                    SizedBox(height: 2),
+                                                    Text(
+                                                      'Видео-плашка',
+                                                      style: TextStyle(
+                                                        color: Colors.white70,
+                                                        fontSize: 8,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
+                                              )
+                                            : Image.file(
+                                                File(widget.bannerPath!),
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) => const Center(
+                                                  child: Icon(Icons.broken_image, size: 14, color: Colors.white),
+                                                ),
+                                              ))
+                                        : const Center(
+                                            child: Text(
+                                              'Плашка',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
                                               ),
-                                            )
-                                          : Image.file(
-                                              File(widget.bannerPath!),
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => const Center(
-                                                child: Icon(Icons.broken_image, size: 14, color: Colors.white),
-                                              ),
-                                            ))
-                                      : const Center(
-                                          child: Text(
-                                            'Плашка',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        ),
+                                  ),
                                 ),
                               ),
+                            ),
 
-                              // Resize Handle bottom-right
-                              Positioned(
-                                right: -8,
-                                bottom: -8,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onPanUpdate: (details) {
-                                    setState(() {
-                                      final newW = ((bannerWidth + details.delta.dx) / canvasW)
-                                          .clamp(0.15, 1.0 - _bX);
-                                      final newH = ((bannerHeight + details.delta.dy) / canvasH)
-                                          .clamp(0.05, 1.0 - _bY);
-                                      _bW = newW;
-                                      _bH = newH;
-                                    });
-                                    _notifyBanner();
-                                  },
+                            // Resize Handle bottom-right
+                            Positioned(
+                              right: -14,
+                              bottom: -14,
+                              child: Listener(
+                                behavior: HitTestBehavior.opaque,
+                                onPointerDown: (_) => widget.onDragStateChanged?.call(true),
+                                onPointerUp: (_) => widget.onDragStateChanged?.call(false),
+                                onPointerCancel: (_) => widget.onDragStateChanged?.call(false),
+                                onPointerMove: (event) {
+                                  setState(() {
+                                    final newW = (_bW + event.delta.dx / canvasW).clamp(0.15, (1.0 - _bX).clamp(0.15, 1.0));
+                                    final newH = (_bH + event.delta.dy / canvasH).clamp(0.05, (1.0 - _bY).clamp(0.05, 1.0));
+                                    _bW = newW;
+                                    _bH = newH;
+                                  });
+                                  _notifyBanner();
+                                },
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  alignment: Alignment.center,
                                   child: Container(
-                                    width: 32,
-                                    height: 32,
-                                    alignment: Alignment.center,
-                                    child: Container(
-                                      width: 16,
-                                      height: 16,
-                                      decoration: BoxDecoration(
-                                        color: Colors.blueAccent,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 1.5),
-                                      ),
-                                      child: const Icon(
-                                        Icons.aspect_ratio,
-                                        size: 9,
-                                        color: Colors.white,
-                                      ),
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black45,
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.aspect_ratio,
+                                      size: 11,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -509,6 +537,64 @@ class _FullPreviewEditorState extends State<FullPreviewEditor> {
               ),
             ),
             const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: [
+                ActionChip(
+                  avatar: const Icon(Icons.vertical_align_bottom, size: 14),
+                  label: const Text('Снизу', style: TextStyle(fontSize: 11)),
+                  onPressed: () {
+                    setState(() {
+                      _bX = 0.0;
+                      _bY = 0.844;
+                      _bW = 1.0;
+                      _bH = 0.156;
+                    });
+                    _notifyBanner();
+                  },
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.vertical_align_top, size: 14),
+                  label: const Text('Сверху', style: TextStyle(fontSize: 11)),
+                  onPressed: () {
+                    setState(() {
+                      _bX = 0.0;
+                      _bY = 0.0;
+                      _bW = 1.0;
+                      _bH = 0.156;
+                    });
+                    _notifyBanner();
+                  },
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.vertical_align_center, size: 14),
+                  label: const Text('По центру', style: TextStyle(fontSize: 11)),
+                  onPressed: () {
+                    setState(() {
+                      _bX = 0.1;
+                      _bY = 0.42;
+                      _bW = 0.8;
+                      _bH = 0.16;
+                    });
+                    _notifyBanner();
+                  },
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.fit_screen, size: 14),
+                  label: const Text('Во всю ширину', style: TextStyle(fontSize: 11)),
+                  onPressed: () {
+                    setState(() {
+                      _bX = 0.0;
+                      _bW = 1.0;
+                    });
+                    _notifyBanner();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Center(
               child: Text(
                 'Плашка: X=${(_bX * 100).toStringAsFixed(0)}%, Y=${(_bY * 100).toStringAsFixed(0)}% | W=${(_bW * 100).toStringAsFixed(0)}%, H=${(_bH * 100).toStringAsFixed(0)}%',

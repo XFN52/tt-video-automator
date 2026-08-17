@@ -45,6 +45,7 @@ dependencies:
   ffmpeg_kit_flutter_new: ^4.6.2
   video_thumbnail: ^0.5.6
   fvp: ^0.37.3
+  whisper_flutter_new: ^1.0.1
 
 dev_dependencies:
   flutter_test:

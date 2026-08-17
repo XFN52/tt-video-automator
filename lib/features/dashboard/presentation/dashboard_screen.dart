@@ -43,10 +43,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (savedOut != null && savedOut.isNotEmpty) {
       _outputDirectory = savedOut;
     } else if (_isMobilePlatform) {
-      getApplicationDocumentsDirectory().then((dir) {
-        if (mounted) setState(() => _outputDirectory = dir.path);
-      });
+      _initDefaultMobileOutputDir();
     }
+  }
+
+  Future<void> _initDefaultMobileOutputDir() async {
+    final candidates = [
+      '/storage/emulated/0/Movies/TT_Automator',
+      '/storage/emulated/0/Download/TT_Automator',
+      '/storage/emulated/0/DCIM/TT_Automator',
+    ];
+    for (final c in candidates) {
+      try {
+        final d = Directory(c);
+        if (!await d.exists()) {
+          await d.create(recursive: true);
+        }
+        if (mounted) {
+          setState(() => _outputDirectory = d.path);
+          await AppSettingsService.instance.setString(
+            AppSettingsService.keyLastOutputDirectory,
+            d.path,
+          );
+        }
+        return;
+      } catch (_) {}
+    }
+
+    final dir = await getApplicationDocumentsDirectory();
+    if (mounted) setState(() => _outputDirectory = dir.path);
   }
 
   Future<void> _pickFiles() async {
@@ -70,6 +95,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ref
           .read(taskQueueProvider.notifier)
           .addTasksFromPaths(paths, _outputDirectory);
+      for (final p in paths) {
+        WhisperService.preWarmCacheForVideo(p);
+      }
     }
   }
 
@@ -186,15 +214,53 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _selectOutputDirectory() async {
-    // На мобильных платформах file_picker не умеет выбирать директории —
-    // используем приложение-документы по умолчанию.
     if (_isMobilePlatform) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('На мобильном результат сохраняется в папку приложения.'),
-          behavior: SnackBarBehavior.floating,
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                leading: Icon(Icons.folder_special),
+                title: Text('Папка сохранения готовых роликов', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('Выберите, куда сохранять уникализированные видео:'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.movie, color: Colors.blueAccent),
+                title: const Text('Фильмы / Галерея (Movies/TT_Automator)'),
+                subtitle: const Text('Видео сразу отобразятся в системной Галерее'),
+                onTap: () => Navigator.pop(ctx, '/storage/emulated/0/Movies/TT_Automator'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.download, color: Colors.greenAccent),
+                title: const Text('Загрузки (Download/TT_Automator)'),
+                subtitle: const Text('Папка Загрузок в памяти телефона'),
+                onTap: () => Navigator.pop(ctx, '/storage/emulated/0/Download/TT_Automator'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_roll, color: Colors.orangeAccent),
+                title: const Text('Камера / DCIM (DCIM/TT_Automator)'),
+                subtitle: const Text('Папка DCIM на устройстве'),
+                onTap: () => Navigator.pop(ctx, '/storage/emulated/0/DCIM/TT_Automator'),
+              ),
+            ],
+          ),
         ),
       );
+
+      if (selected != null && selected.isNotEmpty) {
+        try {
+          final d = Directory(selected);
+          if (!await d.exists()) await d.create(recursive: true);
+        } catch (_) {}
+        setState(() => _outputDirectory = selected);
+        await AppSettingsService.instance.setString(
+          AppSettingsService.keyLastOutputDirectory,
+          selected,
+        );
+      }
       return;
     }
 
@@ -456,10 +522,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             style: TextStyle(color: Colors.grey),
                           ),
                           const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: _pickFiles,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Выбрать файлы'),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _pickFiles,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Выбрать файлы'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _pickAndSmartCut,
+                                icon: const Icon(Icons.auto_fix_high, color: Color(0xFFFE2C55)),
+                                label: const Text('🤖 ИИ Нарезка'),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFFFE2C55)),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -572,6 +653,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onTaskTrim: (task) {
                 context.push('/trimmer', extra: task.inputFilePath);
               },
+              onTaskAiSmartCut: (task) {
+                showDialog(
+                  context: context,
+                  builder: (_) => AiSmartCutDialog(
+                    initialVideoPath: task.inputFilePath,
+                    outputDirectory: _outputDirectory,
+                  ),
+                );
+              },
               onTaskEditHook: (task, hook) {
                 ref.read(taskQueueProvider.notifier).updateTaskHook(task.id, hook);
               },
@@ -604,10 +694,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         // Убран вложенный Flexible: OutlinedButton.icon уже оборачивает
                         // label в Flexible — двойной Flexible даёт краш layout'а в debug/test.
                         label: Text(
-                          _isMobilePlatform
-                              ? 'Сохранение в папку приложения'
-                              : (_outputDirectory.isEmpty
-                                  ? 'Выберите папку сохранения'
+                          _outputDirectory.isEmpty
+                              ? 'Выберите папку сохранения'
+                              : (_isMobilePlatform
+                                  ? (_outputDirectory.contains('Movies')
+                                      ? '🎬 Галерея: Movies/TT_Automator'
+                                      : (_outputDirectory.contains('Download')
+                                          ? '📥 Загрузки: Download/TT_Automator'
+                                          : _outputDirectory.split('/').last))
                                   : _outputDirectory),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,

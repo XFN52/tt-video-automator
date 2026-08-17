@@ -15,8 +15,9 @@ class BatchQueueManager {
   /// Concurrent task count scales with CPU logical cores: numberOfProcessors ~/ 2.
   /// Clamped to [3, 8]: min 3 for overlap, max 8 to protect VRAM on budget GPUs (~275MB VRAM/task).
   /// Examples: 4-core → 3, 8-core → 4, 12-core → 6, 16-core → 8.
-  static int get _maxConcurrentTasks =>
-      (Platform.numberOfProcessors ~/ 2).clamp(3, 8);
+  static int get _maxConcurrentTasks => Platform.isAndroid
+      ? 1
+      : (Platform.numberOfProcessors ~/ 2).clamp(3, 8);
 
   BatchQueueManager(this._ffmpegEngine, {WhisperService? whisperService})
       : _whisperService = whisperService ?? WhisperService();
@@ -129,19 +130,27 @@ class BatchQueueManager {
     final partSuffix = task.partNumber != null ? '_part${task.partNumber}' : '';
     final outputFilePath = '${dir.path}/$fileNameWithoutExt${partSuffix}_unique.mp4';
 
-    // Select random MP3 audio file if audioPath preset directory is set
+    // Select MP3 audio file if audioPath preset (file or directory) is set
     String? selectedAudioPath;
     if (preset.audioPath != null && preset.audioPath!.isNotEmpty) {
-      final audioDir = Directory(preset.audioPath!);
-      if (await audioDir.exists()) {
-        final mp3Files = audioDir
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.mp3'))
-            .toList();
-        if (mp3Files.isNotEmpty) {
-          mp3Files.shuffle();
-          selectedAudioPath = mp3Files.first.path;
+      final audioFile = File(preset.audioPath!);
+      if (await audioFile.exists()) {
+        selectedAudioPath = audioFile.path;
+      } else {
+        final audioDir = Directory(preset.audioPath!);
+        if (await audioDir.exists()) {
+          final mp3Files = audioDir
+              .listSync()
+              .whereType<File>()
+              .where((f) {
+                final p = f.path.toLowerCase();
+                return p.endsWith('.mp3') || p.endsWith('.wav') || p.endsWith('.m4a') || p.endsWith('.aac') || p.endsWith('.ogg');
+              })
+              .toList();
+          if (mp3Files.isNotEmpty) {
+            mp3Files.shuffle();
+            selectedAudioPath = mp3Files.first.path;
+          }
         }
       }
     }

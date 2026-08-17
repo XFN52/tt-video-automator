@@ -6,8 +6,10 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:whisper_flutter_new/whisper_flutter_new.dart' as wfn;
 import '../../presets/domain/render_preset.dart';
 import '../../tasks/domain/video_task.dart';
+import '../../ai_assistant/data/ai_assistant_service.dart';
 import '../domain/subtitle_token.dart';
 import '../utils/ass_file_writer.dart';
 
@@ -188,6 +190,7 @@ class WhisperService {
       }
 
       args.addAll([
+        '-threads', '4',
         '-i',
         task.inputFilePath,
         '-vn', // Disable video stream for ultra-fast extraction
@@ -199,9 +202,6 @@ class WhisperService {
         'pcm_s16le', // Uncompressed 16-bit PCM WAV
         outputWavPath,
       ]);
-
-      final commandStr = args.join(' ');
-      debugPrint('Extracting audio for Whisper: $commandStr');
 
       if (Platform.isWindows) {
         try {
@@ -217,7 +217,11 @@ class WhisperService {
         }
       }
 
-      final session = await FFmpegKit.execute(commandStr);
+      // Safe argument quoting for FFmpegKit
+      final safeCommand = args.map((a) => a.contains(' ') ? '"$a"' : a).join(' ');
+      debugPrint('Extracting audio for Whisper: $safeCommand');
+
+      final session = await FFmpegKit.execute(safeCommand);
       final returnCode = await session.getReturnCode();
 
       if (ReturnCode.isSuccess(returnCode)) {
@@ -234,19 +238,28 @@ class WhisperService {
     }
   }
 
-  /// Transcribes input WAV audio file into word-level subtitle tokens with exact timestamps via whisper-cli.
-  /// If GPU/cuBLAS fails, falls back automatically to CPU-based whisper-cli.
+  /// Transcribes input WAV audio file into word-level subtitle tokens with exact timestamps.
   Future<List<SubtitleToken>> runWhisperTranscription({
     required String wavPath,
     required String modelPath,
   }) async {
-    debugPrint('Running Whisper AI transcription on $wavPath using $modelPath...');
+    debugPrint('Running Whisper AI transcription on $wavPath...');
 
     try {
       final wavFile = File(wavPath);
       if (!await wavFile.exists()) {
         debugPrint('WAV file does not exist: $wavPath');
         return [];
+      }
+
+      // On Android / iOS, transcribe via on-device Whisper engine (whisper.cpp NDK)
+      if (Platform.isAndroid || Platform.isIOS) {
+        final localTokens = await _transcribeViaWhisperFlutter(wavPath: wavPath);
+        if (localTokens.isNotEmpty) {
+          return localTokens;
+        }
+        // Fallback to Cloud Whisper if on-device model not available
+        return await _transcribeViaCloudApi(wavPath: wavPath);
       }
 
       var cliPath = await ensureWhisperCliDownloaded();
@@ -262,6 +275,132 @@ class WhisperService {
       return tokens;
     } catch (e, stack) {
       debugPrint('Error in runWhisperTranscription: $e\n$stack');
+      return [];
+    }
+  }
+
+  Future<List<SubtitleToken>> _transcribeViaWhisperFlutter({
+    required String wavPath,
+  }) async {
+    try {
+      debugPrint('Running on-device Whisper (whisper_flutter_new) on $wavPath');
+      final whisper = wfn.Whisper(
+        model: wfn.WhisperModel.tiny,
+      );
+
+      final res = await whisper.transcribe(
+        transcribeRequest: wfn.TranscribeRequest(
+          audio: wavPath,
+          language: 'ru',
+          isTranslate: false,
+          isNoTimestamps: false,
+          splitOnWord: true,
+        ),
+      );
+
+      debugPrint('On-device Whisper raw text: ${res.text}');
+      final tokens = <SubtitleToken>[];
+      final segments = res.segments;
+
+      if (segments != null && segments.isNotEmpty) {
+        for (final seg in segments) {
+          final text = seg.text?.trim() ?? '';
+          final fromMs = seg.fromTs?.inMilliseconds ?? 0;
+          final toMs = seg.toTs?.inMilliseconds ?? (fromMs + 400);
+          if (text.isNotEmpty) {
+            tokens.add(SubtitleToken(word: text, startMs: fromMs, endMs: toMs));
+          }
+        }
+      }
+
+      if (tokens.isEmpty && res.text != null && res.text!.trim().isNotEmpty) {
+        final words = res.text!.trim().split(RegExp(r'\s+'));
+        const wordDurationMs = 300;
+        for (int i = 0; i < words.length; i++) {
+          tokens.add(SubtitleToken(
+            word: words[i],
+            startMs: i * wordDurationMs,
+            endMs: (i + 1) * wordDurationMs,
+          ));
+        }
+      }
+
+      debugPrint('On-device Whisper parsed ${tokens.length} tokens');
+      return tokens;
+    } catch (e, stack) {
+      debugPrint('On-device Whisper error: $e\n$stack');
+      return [];
+    }
+  }
+
+  Future<List<SubtitleToken>> _transcribeViaCloudApi({
+    required String wavPath,
+  }) async {
+    try {
+      final ai = AiAssistantService.instance;
+      if (!ai.isConfigured || ai.apiKey.isEmpty) {
+        debugPrint('Cloud Whisper: AI key not configured');
+        return [];
+      }
+
+      var url = '${ai.baseUrl}/audio/transcriptions';
+      if (ai.baseUrl.contains('deepseek')) {
+        url = 'https://api.openai.com/v1/audio/transcriptions';
+      }
+
+      debugPrint('Sending audio to Cloud Whisper endpoint: $url');
+      final req = http.MultipartRequest('POST', Uri.parse(url));
+      req.headers['Authorization'] = 'Bearer ${ai.apiKey}';
+      req.fields['model'] = 'whisper-1';
+      req.fields['response_format'] = 'verbose_json';
+      req.fields['timestamp_granularities[]'] = 'word';
+      req.files.add(await http.MultipartFile.fromPath('file', wavPath));
+
+      final streamedResponse = await req.send();
+      final res = await http.Response.fromStream(streamedResponse);
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final tokens = <SubtitleToken>[];
+        final words = json['words'] as List?;
+        if (words != null && words.isNotEmpty) {
+          for (final w in words) {
+            final wordText = (w['word'] ?? '').toString().trim();
+            final startSec = (w['start'] as num?)?.toDouble() ?? 0.0;
+            final endSec = (w['end'] as num?)?.toDouble() ?? 0.0;
+            if (wordText.isNotEmpty) {
+              tokens.add(SubtitleToken(
+                word: wordText,
+                startMs: (startSec * 1000).round(),
+                endMs: (endSec * 1000).round(),
+              ));
+            }
+          }
+        } else {
+          final segments = json['segments'] as List?;
+          if (segments != null) {
+            for (final seg in segments) {
+              final text = (seg['text'] ?? '').toString().trim();
+              final startSec = (seg['start'] as num?)?.toDouble() ?? 0.0;
+              final endSec = (seg['end'] as num?)?.toDouble() ?? 0.0;
+              if (text.isNotEmpty) {
+                tokens.add(SubtitleToken(
+                  word: text,
+                  startMs: (startSec * 1000).round(),
+                  endMs: (endSec * 1000).round(),
+                ));
+              }
+            }
+          }
+        }
+        debugPrint('Cloud Whisper transcribed ${tokens.length} tokens successfully.');
+        return tokens;
+      } else {
+        debugPrint('Cloud Whisper returned ${res.statusCode}: ${res.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Cloud Whisper error: $e');
       return [];
     }
   }
@@ -378,25 +517,41 @@ class WhisperService {
 
   /// Caches recognized tokens for a video in memory and persists to disk cache
   static void cacheTokensForVideo(String videoPath, List<SubtitleToken> tokens) {
-    _videoTokensCache[videoPath] = tokens;
+    final key = _diskCacheKey(videoPath);
+    _videoTokensCache[key] = tokens;
     _saveTokensToDiskCache(videoPath, tokens);
   }
 
   /// Returns cached tokens from RAM or persistent disk cache if available
   static Future<List<SubtitleToken>?> getCachedTokensForVideo(String videoPath) async {
-    if (_videoTokensCache.containsKey(videoPath) && _videoTokensCache[videoPath]!.isNotEmpty) {
-      return _videoTokensCache[videoPath];
+    final key = _diskCacheKey(videoPath);
+    if (_videoTokensCache.containsKey(key) && _videoTokensCache[key]!.isNotEmpty) {
+      return _videoTokensCache[key];
     }
     return await _loadTokensFromDiskCache(videoPath);
   }
 
   static String _diskCacheKey(String path) {
-    final bytes = utf8.encode(path);
-    final hash = bytes.fold<int>(0, (prev, elem) => (prev * 31 + elem) & 0x7FFFFFFF);
-    final filename = path.split(RegExp(r'[\\/]')).last;
+    String cleanPath = path;
+    String sliceSuffix = '';
+    if (path.contains('#')) {
+      final parts = path.split('#');
+      cleanPath = parts[0];
+      sliceSuffix = '_slice_${parts[1].replaceAll(':', '_')}';
+    }
+
+    int fileSize = 0;
+    try {
+      final file = File(cleanPath);
+      if (file.existsSync()) {
+        fileSize = file.lengthSync();
+      }
+    } catch (_) {}
+
+    final filename = cleanPath.split(RegExp(r'[\\/]')).last;
     final cleanName = filename.replaceAll(RegExp(r'[^\w\dа-яА-ЯёЁ\-\.]'), '_');
-    final prefix = cleanName.length > 30 ? cleanName.substring(0, 30) : cleanName;
-    return '${prefix}_$hash';
+    final prefix = cleanName.length > 35 ? cleanName.substring(0, 35) : cleanName;
+    return '${prefix}_size${fileSize}$sliceSuffix';
   }
 
   static Future<void> _saveTokensToDiskCache(String videoPath, List<SubtitleToken> tokens) async {
@@ -432,7 +587,8 @@ class WhisperService {
                     endMs: (item['e'] as num?)?.toInt() ?? 0,
                   ))
               .toList();
-          _videoTokensCache[videoPath] = tokens;
+          final key = _diskCacheKey(videoPath);
+          _videoTokensCache[key] = tokens;
           debugPrint('WhisperService: Loaded ${tokens.length} tokens from disk cache -> ${cacheFile.path}');
           return tokens;
         }
@@ -441,6 +597,38 @@ class WhisperService {
       debugPrint('WhisperService: Failed to load disk cache: $e');
     }
     return null;
+  }
+
+  /// Asynchronously pre-warms the Whisper cache for a video file in the background
+  static Future<void> preWarmCacheForVideo(String videoPath) async {
+    try {
+      final cached = await getCachedTokensForVideo(videoPath);
+      if (cached != null && cached.isNotEmpty) return;
+
+      final tempDir = await getTemporaryDirectory();
+      final key = _diskCacheKey(videoPath);
+      final wavPath = '${tempDir.path}/prewarm_${key}.wav';
+
+      final svc = WhisperService();
+      final dummyTask = VideoTask()
+        ..inputFilePath = videoPath
+        ..outputFolderPath = '';
+      final extracted = await svc.extractAudioForWhisper(task: dummyTask, outputWavPath: wavPath);
+      if (extracted != null) {
+        final modelPath = await svc.ensureModelDownloaded(modelType: WhisperModelType.tiny);
+        final tokens = await svc.runWhisperTranscription(wavPath: extracted, modelPath: modelPath);
+        if (tokens.isNotEmpty) {
+          cacheTokensForVideo(videoPath, tokens);
+          debugPrint('WhisperService: Pre-warm completed for $videoPath (${tokens.length} tokens)');
+        }
+        try {
+          final f = File(extracted);
+          if (await f.exists()) await f.delete();
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('WhisperService: Pre-warm error: $e');
+    }
   }
 
   /// End-to-end pipeline: Extracts audio, runs transcription, builds ASS file,
@@ -456,12 +644,14 @@ class WhisperService {
       final assPath = '${tempDir.path}/task_${task.id}_subtitles.ass';
 
       // 0. Instant Cache Check (RAM or Disk) for full video or exact slice:
-      List<SubtitleToken>? fullTokens = _videoTokensCache[task.inputFilePath] ??
+      final key = _diskCacheKey(task.inputFilePath);
+      List<SubtitleToken>? fullTokens = _videoTokensCache[key] ??
           await _loadTokensFromDiskCache(task.inputFilePath);
 
       // Check slice-specific cache if not full
       final sliceKey = '${task.inputFilePath}#${task.startTime}_${task.endTime}';
-      fullTokens ??= _videoTokensCache[sliceKey] ??
+      final sliceKeyId = _diskCacheKey(sliceKey);
+      fullTokens ??= _videoTokensCache[sliceKeyId] ??
           await _loadTokensFromDiskCache(sliceKey);
 
       if (fullTokens != null && fullTokens.isNotEmpty) {

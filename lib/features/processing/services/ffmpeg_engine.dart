@@ -103,7 +103,14 @@ class FfmpegEngine {
         useNvenc: false,
       );
 
-      final commandStr = result.arguments.join(' ');
+      final safeArgs = result.arguments.map((arg) {
+        if (arg.contains(' ') && !arg.startsWith('"') && !arg.startsWith("'")) {
+          return '"$arg"';
+        }
+        return arg;
+      }).toList();
+
+      final commandStr = safeArgs.join(' ');
       debugPrint('Executing FFmpegKit command: $commandStr');
       logSink.writeln('Command: $commandStr');
 

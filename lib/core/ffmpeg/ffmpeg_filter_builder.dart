@@ -46,8 +46,8 @@ class FfmpegFilterBuilder {
 
     // Platform & Hardware Acceleration Input Decoders
     if (Platform.isAndroid) {
-      // Android Hardware Acceleration Decoder
-      args.addAll(['-c:v', 'h264_mediacodec']);
+      // Android: MediaCodec hardware video decode (MediaTek / Snapdragon GPU VPU)
+      args.addAll(['-hwaccel', 'mediacodec']);
     } else if (useNvenc) {
       // Windows: NVDEC hardware decode (GTX 1050+ CUDA H.264 decoder).
       // Offloads decode from CPU to GPU; auto-fallback to software on unsupported codecs.
@@ -64,16 +64,20 @@ class FfmpegFilterBuilder {
     int? gameplayIdx;
     if (preset.bgMode == BackgroundMode.splitScreen &&
         gameplayVideoPath != null &&
-        gameplayVideoPath.isNotEmpty) {
+        gameplayVideoPath.isNotEmpty &&
+        File(gameplayVideoPath).existsSync()) {
       args.addAll(['-stream_loop', '-1', '-i', gameplayVideoPath]);
       gameplayIdx = inputCount++;
     }
 
     // Optional Input 2: Looping Banner (MP4/PNG)
     int? bannerIdx;
-    if (preset.bannerPath != null && preset.bannerPath!.isNotEmpty) {
-      if (preset.bannerPath!.endsWith('.mp4') || preset.bannerPath!.endsWith('.mov')) {
-        args.addAll(['-stream_loop', '-1', '-i', preset.bannerPath!]);
+    if (preset.bannerPath != null &&
+        preset.bannerPath!.isNotEmpty &&
+        File(preset.bannerPath!).existsSync()) {
+      if (preset.bannerPath!.toLowerCase().endsWith('.mp4') ||
+          preset.bannerPath!.toLowerCase().endsWith('.mov')) {
+        args.addAll(['-stream_loop', '-1', '-an', '-i', preset.bannerPath!]);
       } else {
         args.addAll(['-i', preset.bannerPath!]);
       }
@@ -82,7 +86,9 @@ class FfmpegFilterBuilder {
 
     // Optional Input 3: Background Audio Track (MP3)
     int? audioTrackIdx;
-    if (backgroundAudioPath != null && backgroundAudioPath.isNotEmpty) {
+    if (backgroundAudioPath != null &&
+        backgroundAudioPath.isNotEmpty &&
+        File(backgroundAudioPath).existsSync()) {
       args.addAll(['-stream_loop', '-1', '-i', backgroundAudioPath]);
       audioTrackIdx = inputCount++;
     }
@@ -127,45 +133,52 @@ class FfmpegFilterBuilder {
       final contrast = (1.0 + preset.colorDelta + cJitter).toStringAsFixed(3);
       final saturation = (1.0 + preset.colorDelta * 0.8).toStringAsFixed(3);
       filterGraphParts.add(
-        '$videoStream eq=brightness=$brightness:contrast=$contrast:saturation=$saturation [color_v]',
+        '$videoStream eq=brightness=$brightness:contrast=$contrast:saturation=$saturation:eval=init [color_v]',
       );
       videoStream = '[color_v]';
     }
 
     // --- Uniqueness: Pixel Noise (noise filter with Random seed) ---
     if (preset.noiseLevel > 0.05) {
-      final noiseVal = (preset.noiseLevel * 2).toInt();
+      final noiseVal = (preset.noiseLevel * 2).toInt().clamp(1, 10);
       final randomSeed = random.nextInt(99999);
+      final noiseParam = Platform.isAndroid
+          ? 'c0s=$noiseVal:c0f=u:all_seed=$randomSeed'
+          : 'alls=$noiseVal:allf=u:all_seed=$randomSeed';
       filterGraphParts.add(
-        // allf=u (uniform only): 2× faster than t+u (temporal+uniform); visually identical
-        '$videoStream noise=alls=$noiseVal:allf=u:all_seed=$randomSeed [noise_v]',
+        '$videoStream noise=$noiseParam [noise_v]',
       );
       videoStream = '[noise_v]';
     }
 
     // --- Layout & Canvas 9:16 (720x1280) ---
     if (preset.bgMode == BackgroundMode.blur) {
-      // Blur Background Mode (half-res bg = 360×640 = 4× fewer pixels than 720×1280)
       filterGraphParts.add(
         '$videoStream split [bg_in][fg_in]',
       );
-      // BG at half resolution (360×640): blur radius 10 at 360p ≡ radius 20 at 720p
+      if (Platform.isAndroid) {
+        // Ultra-fast optical blur: 90x160 bilinear downscale/upscale (0ms kernel computation)
+        filterGraphParts.add(
+          '[bg_in] scale=90:160:flags=fast_bilinear,scale=720:1280:flags=fast_bilinear,setsar=1 [bg_blurred]',
+        );
+      } else {
+        filterGraphParts.add(
+          '[bg_in] scale=360:640:flags=bilinear,boxblur=10:2,scale=720:1280:flags=bilinear,setsar=1 [bg_blurred]',
+        );
+      }
       filterGraphParts.add(
-        '[bg_in] scale=360:640:flags=bilinear,boxblur=10:2,scale=720:1280:flags=bilinear,setsar=1 [bg_blurred]',
+        '[fg_in] scale=720:1280:flags=fast_bilinear:force_original_aspect_ratio=decrease,setsar=1 [fg_scaled]',
       );
       filterGraphParts.add(
-        '[fg_in] scale=720:1280:flags=bilinear:force_original_aspect_ratio=decrease,setsar=1 [fg_scaled]',
-      );
-      filterGraphParts.add(
-        '[bg_blurred][fg_scaled] overlay=(W-w)/2:(H-h)/2 [layout_v]',
+        '[bg_blurred][fg_scaled] overlay=(W-w)/2:(H-h)/2:eval=init [layout_v]',
       );
     } else if (preset.bgMode == BackgroundMode.splitScreen && gameplayIdx != null) {
       // Split-Screen Gameplay Mode (vstack requires exact same width 720)
       filterGraphParts.add(
-        '$videoStream scale=720:640:flags=bilinear:force_original_aspect_ratio=decrease,pad=720:640:(ow-iw)/2:(oh-ih)/2,setsar=1 [top_v]',
+        '$videoStream scale=720:640:flags=fast_bilinear:force_original_aspect_ratio=decrease,pad=720:640:(ow-iw)/2:(oh-ih)/2,setsar=1 [top_v]',
       );
       filterGraphParts.add(
-        '[$gameplayIdx:v] scale=720:640:flags=bilinear:force_original_aspect_ratio=increase,crop=720:640,setsar=1 [bottom_v]',
+        '[$gameplayIdx:v] scale=720:640:flags=fast_bilinear:force_original_aspect_ratio=increase,crop=720:640,setsar=1 [bottom_v]',
       );
       filterGraphParts.add(
         '[top_v][bottom_v] vstack [layout_v]',
@@ -173,7 +186,7 @@ class FfmpegFilterBuilder {
     } else {
       // Default scale to 720x1280 pad
       filterGraphParts.add(
-        '$videoStream scale=720:1280:flags=bilinear:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1 [layout_v]',
+        '$videoStream scale=720:1280:flags=fast_bilinear:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1 [layout_v]',
       );
     }
     videoStream = '[layout_v]';
@@ -197,10 +210,10 @@ class FfmpegFilterBuilder {
       final bY = (yRatio * 1280).round().clamp(0, 1280 - bH);
 
       filterGraphParts.add(
-        '[$bannerIdx:v] scale=$bW:$bH:flags=bilinear:force_original_aspect_ratio=decrease,pad=$bW:$bH:(ow-iw)/2:(oh-ih)/2:color=black@0,setsar=1 [banner_scaled]',
+        '[$bannerIdx:v] scale=$bW:$bH:flags=fast_bilinear:force_original_aspect_ratio=decrease,pad=$bW:$bH:(ow-iw)/2:(oh-ih)/2:color=black@0,setsar=1 [banner_scaled]',
       );
       filterGraphParts.add(
-        '$videoStream[banner_scaled] overlay=$bX:$bY:shortest=1 [banner_v]',
+        '$videoStream[banner_scaled] overlay=$bX:$bY:shortest=1:eval=init [banner_v]',
       );
       videoStream = '[banner_v]';
     }
@@ -290,10 +303,11 @@ class FfmpegFilterBuilder {
 
     // --- Final Graph Execution ---
     final fullFilterGraph = filterGraphParts.join(';');
+    final coreCount = Platform.numberOfProcessors.clamp(4, 16);
 
     args.addAll([
-      '-threads', '0',        // auto: global FFmpeg thread count (demux/mux/encode helpers)
-      '-filter_threads', '0', // auto: filtergraph CPU threads
+      '-threads', '$coreCount',
+      '-filter_threads', '$coreCount',
       '-filter_complex',
       fullFilterGraph,
       '-map',
@@ -304,7 +318,13 @@ class FfmpegFilterBuilder {
 
     // Hardware Acceleration Encoder Selection (Switch-Case)
     if (Platform.isAndroid) {
-      args.addAll(['-c:v', 'h264_mediacodec', '-b:v', '1.5M']);
+      args.addAll([
+        '-c:v', 'h264_mediacodec',
+        '-b:v', '1.5M',
+        '-g', '60',
+        '-keyint_min', '30',
+        '-pix_fmt', 'nv12',
+      ]);
     } else if (useNvenc) {
       // Windows NVIDIA NVENC — 720p: 1.5M/2M appropriate for 720×1280 (~45MB per 4-min video)
       args.addAll(['-c:v', 'h264_nvenc', '-preset', 'p1', '-rc', 'vbr', '-cq', '26', '-b:v', '1.5M', '-maxrate', '2M', '-bufsize', '4M', '-pix_fmt', 'yuv420p']);

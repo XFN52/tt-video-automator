@@ -7,11 +7,7 @@ allprojects {
     }
 }
 
-val buildDirFile = File("C:/tmp/tt_build")
-if (!buildDirFile.exists()) {
-    buildDirFile.mkdirs()
-}
-val newBuildDir: Directory = layout.projectDirectory.dir("C:/tmp/tt_build")
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {

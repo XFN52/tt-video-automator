@@ -157,11 +157,18 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      actionsOverflowButtonSpacing: 8,
+      actionsOverflowDirection: VerticalDirection.down,
       title: const Row(
         children: [
           Icon(Icons.smart_toy_outlined, color: Color(0xFF25F4EE)),
           SizedBox(width: 10),
-          Text('Настройки ИИ-Ассистента (LLM)'),
+          Expanded(
+            child: Text(
+              'Настройки ИИ (LLM)',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       content: SizedBox(

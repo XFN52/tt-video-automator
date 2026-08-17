@@ -7,6 +7,7 @@ class TaskItemCard extends StatelessWidget {
   final VoidCallback? onDoubleTap;
   final VoidCallback? onDelete;
   final VoidCallback? onTrim;
+  final VoidCallback? onAiSmartCut;
   final ValueChanged<String?>? onEditHook;
 
   const TaskItemCard({
@@ -15,6 +16,7 @@ class TaskItemCard extends StatelessWidget {
     this.onDoubleTap,
     this.onDelete,
     this.onTrim,
+    this.onAiSmartCut,
     this.onEditHook,
   });
 
@@ -125,169 +127,182 @@ class TaskItemCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Icon(
                     hasSegment ? Icons.content_cut : Icons.movie_outlined,
-                    size: 24,
+                    size: 20,
                     color: Theme.of(context).primaryColor,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fileName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            if (task.partNumber != null) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFE2C55).withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  'Часть ${task.partNumber}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFFE2C55),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                            ],
-                            if (hasSegment)
-                              Text(
-                                '${task.startTime} ➔ ${task.endTime}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 12,
-                                ),
-                              ),
-                          ],
-                        ),
-                        // Хук / Заголовок для этого видео
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: InkWell(
-                            onTap: () => _showHookDialog(context),
-                            borderRadius: BorderRadius.circular(4),
-                            child: hasHook
-                                ? Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blueAccent.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: Colors.blueAccent.withValues(alpha: 0.4),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.title,
-                                          size: 12,
-                                          color: Colors.blueAccent,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Flexible(
-                                          child: Text(
-                                            task.textHook!,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 11,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        const Icon(
-                                          Icons.edit,
-                                          size: 11,
-                                          color: Colors.grey,
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.add_comment_outlined,
-                                        size: 12,
-                                        color: Colors.grey.shade500,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '+ Заголовок / хук',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade400,
-                                          fontSize: 11,
-                                          decoration: TextDecoration.underline,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(width: 8),
-                  if (onTrim != null)
-                    IconButton(
-                      icon: const Icon(Icons.content_cut,
-                          size: 20, color: Colors.grey),
-                      tooltip: 'Нарезать',
-                      onPressed: onTrim,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusColor, width: 1.5),
-                    ),
+                  Expanded(
                     child: Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                      fileName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: statusColor, width: 1.0),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                    icon: const Icon(Icons.close, size: 18, color: Colors.grey),
                     tooltip: 'Удалить из очереди',
                     onPressed: onDelete,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    visualDensity: VisualDensity.compact,
                   ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (task.partNumber != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFE2C55).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Часть ${task.partNumber}',
+                              style: const TextStyle(
+                                color: Color(0xFFFE2C55),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        if (hasSegment)
+                          Text(
+                            '${task.startTime} ➔ ${task.endTime}',
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 11,
+                            ),
+                          ),
+                        InkWell(
+                          onTap: () => _showHookDialog(context),
+                          borderRadius: BorderRadius.circular(4),
+                          child: hasHook
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueAccent.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.blueAccent.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.title,
+                                        size: 11,
+                                        color: Colors.blueAccent,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 120),
+                                        child: Text(
+                                          task.textHook!,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 11,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Icons.edit,
+                                        size: 10,
+                                        color: Colors.grey,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.add_comment_outlined,
+                                      size: 12,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '+ Заголовок / хук',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 11,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (onAiSmartCut != null)
+                    IconButton(
+                      icon: const Icon(Icons.auto_fix_high, size: 18, color: Color(0xFFFE2C55)),
+                      tooltip: '🤖 ИИ Авто-нарезка',
+                      onPressed: onAiSmartCut,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  if (onTrim != null)
+                    IconButton(
+                      icon: const Icon(Icons.content_cut, size: 18, color: Colors.grey),
+                      tooltip: 'Нарезать вручную',
+                      onPressed: onTrim,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      visualDensity: VisualDensity.compact,
+                    ),
                 ],
               ),
               if (task.status == TaskStatus.processing ||
