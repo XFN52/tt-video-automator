@@ -42,7 +42,7 @@ class RenderPreset {
   // ломать нельзя — при чтении используем эти точные значения, при записи
   // округляем до ближайшего enum-значения для обратной совместимости с
   // остальным пайплайном (ASS writer работает по top/center/bottom).
-  double textHookYRatio = 0.686;   // хук снизу на 68.6%
+  double textHookYRatio = 0.08;    // заголовок/хук вверху на 8%
   double numberingYRatio = 0.033;  // "Часть N" вверху на 3.3%
   double subtitleYRatio = 0.877;   // субтитры внизу на 87.7%
 

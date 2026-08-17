@@ -385,78 +385,31 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
               if (_segments.isNotEmpty) ...[
                 const Divider(),
                 const SizedBox(height: 8),
-                Text(
-                  'Сгенерированные серии (${_segments.length} шт.):',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Сгенерированные серии (${_segments.length} шт.):',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'Готово к нарезке',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.greenAccent.shade400,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 280),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _segments.length,
-                    itemBuilder: (context, index) {
-                      final seg = _segments[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade900,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(0xFFFE2C55).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFE2C55),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                'Часть ${seg.partNumber}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${seg.startTime} ➔ ${seg.endTime}',
-                              style: const TextStyle(
-                                color: Colors.cyanAccent,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                seg.hook,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                const SizedBox(height: 10),
+                for (int i = 0; i < _segments.length; i++) ...[
+                  _buildSegmentCard(_segments[i]),
+                  const SizedBox(height: 8),
+                ],
               ],
             ],
           ),
@@ -492,5 +445,82 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
         ),
       ],
     );
+  }
+
+  Widget _buildSegmentCard(AiCutSegment seg) {
+    final cleanStart = _cleanTime(seg.startTime);
+    final cleanEnd = _cleanTime(seg.endTime);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFFFE2C55).withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFE2C55),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Часть ${seg.partNumber}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$cleanStart ➔ $cleanEnd',
+                style: const TextStyle(
+                  color: Colors.cyanAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            seg.hook,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          if (seg.summary != null && seg.summary!.trim().isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              seg.summary!.trim(),
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _cleanTime(String time) {
+    // Remove millisecond decimals for clean UI display (00:00:12.345 -> 00:00:12)
+    final dotIdx = time.indexOf('.');
+    if (dotIdx != -1) {
+      return time.substring(0, dotIdx);
+    }
+    return time;
   }
 }

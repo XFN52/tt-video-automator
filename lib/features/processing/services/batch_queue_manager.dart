@@ -1,13 +1,19 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../../core/utils/file_utils.dart';
+import '../../../core/utils/storage_path_helper.dart';
 import '../../ai_assistant/data/ai_assistant_service.dart';
 import '../../presets/domain/render_preset.dart';
 import '../../subtitles/data/whisper_service.dart';
+import '../../subtitles/domain/subtitle_token.dart';
 import '../../tasks/domain/video_task.dart';
 import '../../tasks/presentation/providers/task_queue_provider.dart';
 import 'ffmpeg_engine.dart';
+import 'native_gpu_engine.dart';
 
-class BatchQueueManager {
+class BatchQueueManager extends ChangeNotifier {
   final FfmpegEngine _ffmpegEngine;
   final WhisperService _whisperService;
   bool _isProcessing = false;
@@ -38,6 +44,7 @@ class BatchQueueManager {
     }
 
     _isProcessing = true;
+    notifyListeners();
     debugPrint(
       'BatchQueueManager: Mutex acquired. Starting concurrent batch (max $_maxConcurrentTasks tasks) '
       'using Preset "${preset.name}" [Whisper=${preset.useWhisper}, Banner=${preset.bannerPath ?? "нет"}, Audio=${preset.audioPath ?? "нет"}]...',
@@ -89,6 +96,7 @@ class BatchQueueManager {
       debugPrint('BatchQueueManager critical error: $e\n$stack');
     } finally {
       _isProcessing = false;
+      notifyListeners();
       debugPrint('BatchQueueManager: Mutex released. Queue processing complete.');
     }
   }
@@ -155,9 +163,17 @@ class BatchQueueManager {
       }
     }
 
+    // Resolve direct storage Banner Path (bypassing any wiped cache paths)
+    String? resolvedBannerPath = preset.bannerPath;
+    if (resolvedBannerPath != null && resolvedBannerPath.isNotEmpty) {
+      resolvedBannerPath = await StoragePathHelper.getDirectStoragePath(resolvedBannerPath);
+      preset.bannerPath = resolvedBannerPath;
+    }
+
     // --- Phase 1: Whisper AI Karaoke Subtitle Generation ---
     String? subtitleAssPath;
     String? transcriptText;
+    List<SubtitleToken>? recognizedTokens;
 
     if (preset.useWhisper) {
       debugPrint('Task #${task.id}: Starting Whisper AI transcription...');
@@ -176,6 +192,7 @@ class BatchQueueManager {
         if (whisperResult != null) {
           subtitleAssPath = whisperResult.assPath;
           transcriptText = whisperResult.transcript;
+          recognizedTokens = whisperResult.tokens;
         }
         debugPrint('Task #${task.id}: Whisper transcription complete.');
       } catch (e) {
@@ -185,12 +202,10 @@ class BatchQueueManager {
 
     // --- Phase 1.5: AI Viral Hook Generation (if hook is empty) ---
     if ((task.textHook == null || task.textHook!.trim().isEmpty) &&
-        transcriptText != null &&
-        transcriptText.isNotEmpty &&
         AiAssistantService.instance.isConfigured &&
         AiAssistantService.instance.isAutoHooksEnabled) {
       try {
-        debugPrint('Task #${task.id}: AI Generating viral hook from speech transcript...');
+        debugPrint('Task #${task.id}: AI Generating viral hook for video "$fileNameWithoutExt"...');
         final aiHook = await AiAssistantService.instance.generateHook(
           transcript: transcriptText,
           videoTitle: fileNameWithoutExt,
@@ -205,25 +220,85 @@ class BatchQueueManager {
       }
     }
 
-    // --- Phase 2: FFmpeg Render ---
-    debugPrint('Task #${task.id}: Starting FFmpeg render...');
-    final renderError = await _ffmpegEngine.executeTask(
-      task: task,
-      preset: preset,
-      outputFilePath: outputFilePath,
-      gameplayVideoPath: preset.gameplayVideoPath,
-      backgroundAudioPath: selectedAudioPath,
-      subtitleAssPath: subtitleAssPath,
-      onProgress: (progress) {
+    // Fallback: If hook is still empty, check if preset has a predefined text hook
+    if ((task.textHook == null || task.textHook!.trim().isEmpty) &&
+        preset.textHook != null &&
+        preset.textHook!.trim().isNotEmpty) {
+      task.textHook = preset.textHook!.trim();
+      await taskNotifier.updateTaskHook(task.id, task.textHook!);
+    }
+
+    // --- Phase 2: Render Execution (Native GPU Engine on Android, FFmpeg on PC) ---
+    bool renderedSuccessfully = false;
+    String? renderError;
+
+    if (Platform.isAndroid) {
+      try {
+        final outF = File(outputFilePath);
+        if (await outF.exists()) {
+          try { await outF.delete(); } catch (_) {}
+        }
+        debugPrint('Task #${task.id}: Launching Native Zero-Copy GPU Engine (100-200 FPS)...');
         final startOffset = preset.useWhisper ? 0.25 : 0.05;
-        final scaledProgress = startOffset + progress * (0.99 - startOffset);
-        taskNotifier.updateTaskProgress(
-          task.id,
-          scaledProgress,
-          TaskStatus.processing,
+        double maxSeenProgress = startOffset;
+        taskNotifier.updateTaskProgress(task.id, startOffset, TaskStatus.processing);
+
+        final gpuTask = VideoTask()
+          ..id = task.id
+          ..inputFilePath = task.inputFilePath
+          ..outputFolderPath = dir.path
+          ..startTime = task.startTime
+          ..endTime = task.endTime
+          ..textHook = task.textHook
+          ..partNumber = task.partNumber;
+
+        renderedSuccessfully = await NativeGpuEngine.instance.renderTask(
+          task: gpuTask,
+          preset: preset,
+          outputFilePath: outputFilePath,
+          tokens: recognizedTokens,
+          onProgress: (progress) {
+            final scaledProgress = (startOffset + progress * (0.99 - startOffset)).clamp(0.0, 0.99);
+            if (scaledProgress >= maxSeenProgress) {
+              maxSeenProgress = scaledProgress;
+              taskNotifier.updateTaskProgress(
+                task.id,
+                scaledProgress,
+                TaskStatus.processing,
+              );
+            }
+          },
         );
-      },
-    );
+        if (renderedSuccessfully) {
+          debugPrint('Task #${task.id}: Native GPU Engine finished successfully.');
+        } else {
+          renderError = 'Native GPU Engine rendering failed';
+        }
+      } catch (e) {
+        debugPrint('Task #${task.id}: Native GPU Engine error: $e');
+        renderError = e.toString();
+      }
+    } else {
+      // Non-Android (Desktop PC)
+      debugPrint('Task #${task.id}: Starting FFmpeg render on Desktop...');
+      renderError = await _ffmpegEngine.executeTask(
+        task: task,
+        preset: preset,
+        outputFilePath: outputFilePath,
+        gameplayVideoPath: preset.gameplayVideoPath,
+        backgroundAudioPath: selectedAudioPath,
+        subtitleAssPath: subtitleAssPath,
+        onProgress: (progress) {
+          final startOffset = preset.useWhisper ? 0.25 : 0.05;
+          final scaledProgress = startOffset + progress * (0.99 - startOffset);
+          taskNotifier.updateTaskProgress(
+            task.id,
+            scaledProgress,
+            TaskStatus.processing,
+          );
+        },
+      );
+    }
 
     // --- Final Status Update & Phase 3 (AI Post Generation) ---
     if (renderError == null) {
@@ -231,26 +306,38 @@ class BatchQueueManager {
       await taskNotifier.updateTaskProgress(task.id, 1.0, TaskStatus.success);
 
       // --- Phase 3: AI Post / Description / Hashtags (.txt) ---
+      final partPrefix = task.partNumber != null ? 'ЧАСТЬ ${task.partNumber} - ' : '';
+      final initialContent = '=== ЗАГОЛОВОК / ХУК ===\n$partPrefix${task.textHook ?? "—"}\n\n=== ТЕКСТ ПОСТА ДЛЯ ПУБЛИКАЦИИ ===\n';
+      
+      await _savePostTextFile(
+        outputFolderPath: dir.path,
+        fileNameWithoutExt: fileNameWithoutExt,
+        partSuffix: partSuffix,
+        fullContent: initialContent,
+      );
+
       if (transcriptText != null &&
           transcriptText.isNotEmpty &&
           AiAssistantService.instance.isConfigured &&
           AiAssistantService.instance.isAutoPostsEnabled) {
-        try {
-          final postText = await AiAssistantService.instance.generatePostDescription(
-            transcript: transcriptText,
-            partNumber: task.partNumber,
-            videoTitle: fileNameWithoutExt,
-          );
-          if (postText != null && postText.isNotEmpty) {
-            final postFilePath = '${dir.path}/$fileNameWithoutExt${partSuffix}_post.txt';
-            final postFile = File(postFilePath);
-            final fullContent = '=== ЗАГОЛОВОК / ХУК ===\n${task.textHook ?? "—"}\n\n=== ТЕКСТ ПОСТА ДЛЯ ПУБЛИКАЦИИ ===\n$postText\n';
-            await postFile.writeAsString(fullContent);
-            debugPrint('Task #${task.id}: AI Post description saved → $postFilePath');
+        // Run AI text generation asynchronously without blocking queue mutex release
+        AiAssistantService.instance.generatePostDescription(
+          transcript: transcriptText,
+          partNumber: task.partNumber,
+          videoTitle: fileNameWithoutExt,
+        ).then((aiPost) async {
+          if (aiPost != null && aiPost.trim().isNotEmpty) {
+            final updatedContent = '=== ЗАГОЛОВОК / ХУК ===\n$partPrefix${task.textHook ?? "—"}\n\n=== ТЕКСТ ПОСТА ДЛЯ ПУБЛИКАЦИИ ===\n$aiPost\n';
+            await _savePostTextFile(
+              outputFolderPath: dir.path,
+              fileNameWithoutExt: fileNameWithoutExt,
+              partSuffix: partSuffix,
+              fullContent: updatedContent,
+            );
           }
-        } catch (e) {
-          debugPrint('Task #${task.id}: AI Post saving error (ignored): $e');
-        }
+        }).catchError((e) {
+          debugPrint('Task #${task.id}: Async AI Post saving error (ignored): $e');
+        });
       }
     } else {
       debugPrint('Task #${task.id}: Render FAILED: $renderError');
@@ -264,5 +351,41 @@ class BatchQueueManager {
 
     // Удаляем temp WAV+ASS, чтобы TemporaryDirectory не раздувался после успешного рендера.
     await _whisperService.cleanupTaskTempFiles(task.id);
+  }
+
+  Future<void> _savePostTextFile({
+    required String outputFolderPath,
+    required String fileNameWithoutExt,
+    required String partSuffix,
+    required String fullContent,
+  }) async {
+    final targetPath = '$outputFolderPath/$fileNameWithoutExt${partSuffix}_post.txt';
+
+    // 1. Android Native MediaStore / All-Files Bridge (Guaranteed same folder saving)
+    if (Platform.isAndroid) {
+      try {
+        final channel = MethodChannel('com.example.tt_video_automator/gpu_engine');
+        final success = await channel.invokeMethod<bool>('saveTextFile', {
+          'path': targetPath,
+          'content': fullContent,
+        });
+        if (success == true) {
+          debugPrint('AI Post description saved in target folder → $targetPath');
+          return;
+        }
+      } catch (e) {
+        debugPrint('Native saveTextFile failed ($e), falling back to direct IO...');
+      }
+    }
+
+    // 2. Direct File write
+    try {
+      final targetFile = File(targetPath);
+      await targetFile.parent.create(recursive: true);
+      await targetFile.writeAsString(fullContent);
+      debugPrint('AI Post description saved directly → $targetPath');
+    } catch (e) {
+      debugPrint('Task AI Post saving error: $e');
+    }
   }
 }

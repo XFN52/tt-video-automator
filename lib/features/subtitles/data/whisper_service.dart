@@ -254,7 +254,10 @@ class WhisperService {
 
       // On Android / iOS, transcribe via on-device Whisper engine (whisper.cpp NDK)
       if (Platform.isAndroid || Platform.isIOS) {
-        final localTokens = await _transcribeViaWhisperFlutter(wavPath: wavPath);
+        final localTokens = await _transcribeViaWhisperFlutter(
+          wavPath: wavPath,
+          modelPath: modelPath,
+        );
         if (localTokens.isNotEmpty) {
           return localTokens;
         }
@@ -279,39 +282,71 @@ class WhisperService {
     }
   }
 
+  static Completer<void>? _activeWhisperJob;
+
+  static Future<T> _synchronizedWhisper<T>(Future<T> Function() block) async {
+    while (_activeWhisperJob != null) {
+      await _activeWhisperJob!.future;
+    }
+    final completer = Completer<void>();
+    _activeWhisperJob = completer;
+    try {
+      return await block();
+    } finally {
+      _activeWhisperJob = null;
+      completer.complete();
+    }
+  }
+
   Future<List<SubtitleToken>> _transcribeViaWhisperFlutter({
     required String wavPath,
+    String? modelPath,
   }) async {
-    try {
-      debugPrint('Running on-device Whisper (whisper_flutter_new) on $wavPath');
-      final whisper = wfn.Whisper(
-        model: wfn.WhisperModel.tiny,
-      );
+    return _synchronizedWhisper(() async {
+      try {
+        final modelDirectory = (modelPath != null && modelPath.isNotEmpty)
+            ? File(modelPath).parent.path
+            : null;
+        final whisper = wfn.Whisper(
+          model: wfn.WhisperModel.tiny,
+          modelDir: modelDirectory,
+        );
 
-      final res = await whisper.transcribe(
-        transcribeRequest: wfn.TranscribeRequest(
-          audio: wavPath,
-          language: 'ru',
-          isTranslate: false,
-          isNoTimestamps: false,
-          splitOnWord: true,
-        ),
-      );
+        final res = await whisper.transcribe(
+          transcribeRequest: wfn.TranscribeRequest(
+            audio: wavPath,
+            language: 'ru',
+            isTranslate: false,
+            isNoTimestamps: false,
+            splitOnWord: false,
+          ),
+        );
 
-      debugPrint('On-device Whisper raw text: ${res.text}');
-      final tokens = <SubtitleToken>[];
-      final segments = res.segments;
+        debugPrint('On-device Whisper raw text: ${res.text}');
+        final tokens = <SubtitleToken>[];
+        final segments = res.segments;
 
-      if (segments != null && segments.isNotEmpty) {
-        for (final seg in segments) {
-          final text = seg.text?.trim() ?? '';
-          final fromMs = seg.fromTs?.inMilliseconds ?? 0;
-          final toMs = seg.toTs?.inMilliseconds ?? (fromMs + 400);
-          if (text.isNotEmpty) {
-            tokens.add(SubtitleToken(word: text, startMs: fromMs, endMs: toMs));
+        if (segments != null && segments.isNotEmpty) {
+          for (final seg in segments) {
+            final segText = seg.text?.trim() ?? '';
+            final fromMs = seg.fromTs?.inMilliseconds ?? 0;
+            final toMs = seg.toTs?.inMilliseconds ?? (fromMs + 1000);
+            if (segText.isNotEmpty) {
+              final words = segText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+              if (words.isNotEmpty) {
+                final totalDuration = (toMs - fromMs).clamp(200, 60000);
+                final wordDur = totalDuration ~/ words.length;
+                for (int i = 0; i < words.length; i++) {
+                  tokens.add(SubtitleToken(
+                    word: words[i],
+                    startMs: fromMs + i * wordDur,
+                    endMs: fromMs + (i + 1) * wordDur,
+                  ));
+                }
+              }
+            }
           }
         }
-      }
 
       if (tokens.isEmpty && res.text != null && res.text!.trim().isNotEmpty) {
         final words = res.text!.trim().split(RegExp(r'\s+'));
@@ -331,6 +366,7 @@ class WhisperService {
       debugPrint('On-device Whisper error: $e\n$stack');
       return [];
     }
+    });
   }
 
   Future<List<SubtitleToken>> _transcribeViaCloudApi({

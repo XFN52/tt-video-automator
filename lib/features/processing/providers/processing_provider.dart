@@ -6,7 +6,7 @@ final ffmpegEngineProvider = Provider<FfmpegEngine>((ref) {
   return FfmpegEngine();
 });
 
-final batchQueueManagerProvider = Provider<BatchQueueManager>((ref) {
+final batchQueueManagerProvider = ChangeNotifierProvider<BatchQueueManager>((ref) {
   final engine = ref.watch(ffmpegEngineProvider);
   return BatchQueueManager(engine);
 });

@@ -72,19 +72,19 @@ class TaskQueueNotifier extends StateNotifier<List<VideoTask>> {
     TaskStatus status, {
     String? errorMsg,
   }) async {
-    await _isarService.updateTaskProgress(
-      taskId,
-      progress,
-      status,
-      errorMsg: errorMsg,
-    );
+    // Сохраняем в базу на диске только при смене статуса или завершении/ошибке (исключаем 200 транзакций/сек в процессе рендера)
+    if (status != TaskStatus.processing || progress >= 1.0 || progress <= 0.05) {
+      await _isarService.updateTaskProgress(
+        taskId,
+        progress,
+        status,
+        errorMsg: errorMsg,
+      );
+    }
 
     state = [
       for (final task in state)
         if (task.id == taskId)
-          // Копируем сам объект задачи и обновляем только изменяемые поля:
-          // если в модель добавят новые (например outputFilePath, presetId),
-          // они здесь не потеряются.
           (task
             ..status = status
             ..progress = progress

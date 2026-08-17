@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../../../core/utils/storage_path_helper.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../core/services/app_settings_service.dart';
 import '../../tasks/presentation/providers/task_queue_provider.dart';
@@ -76,7 +78,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
     _useWhisper = p?.useWhisper ?? true;
     _subtitlePosition = p?.subtitlePosition ?? SubtitlePosition.bottom;
     _audioVolume = p?.audioVolume ?? 0.08;
-    _textHookYRatio = p?.textHookYRatio ?? 0.686;
+    _textHookYRatio = p?.textHookYRatio ?? 0.08;
     _numberingYRatio = p?.numberingYRatio ?? 0.033;
     _subtitleYRatio = p?.subtitleYRatio ??
         // Конвертируем enum в коэффициент для обратной совместимости со
@@ -212,7 +214,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
     );
 
     if (result != null && result.files.single.path != null) {
-      final picked = result.files.single.path!;
+      final picked = await StoragePathHelper.getDirectStoragePath(result.files.single.path!);
       setState(() {
         _bannerPath = picked;
       });
@@ -237,7 +239,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
     );
 
     if (result != null && result.files.single.path != null) {
-      final picked = result.files.single.path!;
+      final picked = await StoragePathHelper.getDirectStoragePath(result.files.single.path!);
       setState(() {
         _gameplayVideoPath = picked;
       });

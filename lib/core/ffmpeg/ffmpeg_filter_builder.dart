@@ -139,14 +139,13 @@ class FfmpegFilterBuilder {
     }
 
     // --- Uniqueness: Pixel Noise (noise filter with Random seed) ---
-    if (preset.noiseLevel > 0.05) {
+    // On mobile ARM64 CPUs, software pixel noise is the #1 CPU bottleneck (drops FPS by 50%+).
+    // On Android, uniqueness is achieved via hardware MediaCodec color matrix jitter and micro-tempo.
+    if (preset.noiseLevel > 0.05 && !Platform.isAndroid) {
       final noiseVal = (preset.noiseLevel * 2).toInt().clamp(1, 10);
       final randomSeed = random.nextInt(99999);
-      final noiseParam = Platform.isAndroid
-          ? 'c0s=$noiseVal:c0f=u:all_seed=$randomSeed'
-          : 'alls=$noiseVal:allf=u:all_seed=$randomSeed';
       filterGraphParts.add(
-        '$videoStream noise=$noiseParam [noise_v]',
+        '$videoStream noise=alls=$noiseVal:allf=u:all_seed=$randomSeed [noise_v]',
       );
       videoStream = '[noise_v]';
     }

@@ -179,34 +179,40 @@ class AiAssistantService {
     }
   }
 
-  /// Генерация одного вирусного кликбейтного хука (3-6 слов)
+  /// Генерация одного вирусного кликбейтного хука (3-6 слов) на основе транскрипта или названия/темы видео
   Future<String?> generateHook({
-    required String transcript,
+    String? transcript,
     String? videoTitle,
   }) async {
-    if (transcript.trim().isEmpty) return null;
+    final hasTranscript = transcript != null && transcript.trim().isNotEmpty;
+    final hasTitle = videoTitle != null && videoTitle.trim().isNotEmpty;
+    if (!hasTranscript && !hasTitle) return null;
 
     const systemPrompt = '''
 Ты — ведущий креативный продюсер вирусных коротких видео (TikTok, Reels, Shorts).
-На основе расшифровки речи из видео придумай ОДИН мощный, интригующий, кликбейтный заголовок-хук на русском языке для верхней плашки ролика.
+Придумай ОДИН мощный, интригующий, кликбейтный заголовок-хук на русском языке для верхней плашки ролика.
 Требования:
 - Ровно 3-6 слов.
-- Вызывает моментальное любопытство и желание досмотреть.
-- Без кавычек, без смайлов в начале, без знаков препинания в конце.
+- Вызывает моментальное любопытство и непреодолимое желание досмотреть видео до конца.
+- Без кавычек, без смайлов, без точек в конце.
 - Пиши только сам заголовок, никаких пояснений.''';
 
-    final userPrompt = '''
+    final userPrompt = hasTranscript
+        ? '''
 Название видео: ${videoTitle ?? 'Без названия'}
 Текст речи из видео:
 """
 $transcript
-"""''';
+"""'''
+        : '''
+Название/тема видео: "${videoTitle ?? 'Видео'}"
+Придумай вирусный цепляющий заголовок-хук для этого ролика:''';
 
     final result = await _chatCompletion(
       systemPrompt: systemPrompt,
       userPrompt: userPrompt,
       temperature: 0.8,
-      maxTokens: 50,
+      maxTokens: 60,
     );
 
     if (result != null && result.isNotEmpty) {
@@ -367,12 +373,20 @@ ${buffer.toString()}
 
     try {
       String cleanJson = rawJson.trim();
-      if (cleanJson.startsWith('```')) {
-        cleanJson = cleanJson.replaceAll(RegExp(r'^```(json)?\n?'), '');
-        cleanJson = cleanJson.replaceAll(RegExp(r'```$'), '');
+      
+      // Ищем JSON-массив с помощью регулярки, чтобы игнорировать мусор от LLM
+      final match = RegExp(r'\[\s*\{.*\}\s*\]', dotAll: true).firstMatch(cleanJson);
+      if (match != null) {
+        cleanJson = match.group(0)!;
+      } else {
+        // Fallback: обычная очистка маркдауна
+        if (cleanJson.startsWith('```')) {
+          cleanJson = cleanJson.replaceAll(RegExp(r'^```(json)?\n?'), '');
+          cleanJson = cleanJson.replaceAll(RegExp(r'```$'), '');
+        }
       }
+      
       cleanJson = cleanJson.trim();
-
       final decoded = jsonDecode(cleanJson);
       if (decoded is List) {
         final segments = <AiCutSegment>[];
@@ -597,7 +611,13 @@ ${buffer.toString()}
         );
 
         if (response != null && response.isNotEmpty) {
-          final jsonClean = response.replaceAll(RegExp(r'```json|```'), '').trim();
+          String jsonClean = response.trim();
+          final match = RegExp(r'\[\s*\{.*\}\s*\]', dotAll: true).firstMatch(jsonClean);
+          if (match != null) {
+            jsonClean = match.group(0)!;
+          } else {
+            jsonClean = jsonClean.replaceAll(RegExp(r'```json|```'), '').trim();
+          }
           final decoded = jsonDecode(jsonClean) as List?;
           if (decoded != null) {
             for (final item in decoded) {

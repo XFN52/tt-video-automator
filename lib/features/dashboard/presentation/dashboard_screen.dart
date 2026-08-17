@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/utils/file_utils.dart';
+import '../../../core/utils/storage_path_helper.dart';
 import '../../../core/services/app_settings_service.dart';
 import '../../ai_assistant/data/ai_assistant_service.dart';
 import '../../ai_assistant/presentation/ai_settings_dialog.dart';
@@ -44,6 +46,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _outputDirectory = savedOut;
     } else if (_isMobilePlatform) {
       _initDefaultMobileOutputDir();
+    }
+    _checkStoragePermission();
+  }
+
+  Future<void> _checkStoragePermission() async {
+    if (Platform.isAndroid) {
+      try {
+        final channel = MethodChannel('com.example.tt_video_automator/gpu_engine');
+        final isGranted = await channel.invokeMethod<bool>('isAllFilesAccessGranted');
+        if (isGranted == false && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Для сохранения текстовиков (.txt) в любые папки включите «Доступ ко всем файлам»'),
+              action: SnackBarAction(
+                label: 'ВКЛЮЧИТЬ',
+                onPressed: () {
+                  channel.invokeMethod('requestAllFilesAccess');
+                },
+              ),
+              duration: const Duration(seconds: 12),
+            ),
+          );
+        }
+      } catch (_) {}
     }
   }
 
@@ -85,7 +111,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (result != null && result.paths.isNotEmpty) {
-      final paths = result.paths.whereType<String>().toList();
+      final rawPaths = result.paths.whereType<String>().toList();
+      final paths = <String>[];
+      for (final p in rawPaths) {
+        paths.add(await StoragePathHelper.getDirectStoragePath(p));
+      }
+
       if (paths.isNotEmpty) {
         await AppSettingsService.instance.rememberParentDirectoryForFile(
           AppSettingsService.keyLastInputVideoDirectory,
@@ -112,7 +143,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (result != null && result.paths.isNotEmpty && result.paths.first != null) {
-      final path = result.paths.first!;
+      final path = await StoragePathHelper.getDirectStoragePath(result.paths.first!);
       await AppSettingsService.instance.rememberParentDirectoryForFile(
         AppSettingsService.keyLastInputVideoDirectory,
         path,
