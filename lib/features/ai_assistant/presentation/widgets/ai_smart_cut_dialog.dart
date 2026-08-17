@@ -258,13 +258,28 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Желаемая длительность одной серии:',
+                'Режим нарезки и длительность:',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
+                runSpacing: 6,
                 children: [
+                  ChoiceChip(
+                    label: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.whatshot, size: 16, color: Color(0xFFFE2C55)),
+                        SizedBox(width: 5),
+                        Text('🔥 Авто-Клиффхэнгер (Пик интриги)'),
+                      ],
+                    ),
+                    selected: _targetDuration == 0,
+                    onSelected: _isAnalyzing
+                        ? null
+                        : (_) => setState(() => _targetDuration = 0),
+                  ),
                   ChoiceChip(
                     label: const Text('30–45 сек (Short)'),
                     selected: _targetDuration == 35,
