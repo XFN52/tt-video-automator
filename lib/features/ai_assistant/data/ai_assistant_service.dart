@@ -271,15 +271,23 @@ $transcript
     final phrases = groupTokensIntoPhrases(tokens);
     if (phrases.isEmpty) return [];
 
-    // Составляем пронумерованный список фраз с длительностью
+    // Составляем пронумерованный список фраз с таймкодами в секундах
     final buffer = StringBuffer();
     for (int i = 0; i < phrases.length; i++) {
       final p = phrases[i];
       final dur = p.durationSec;
-      buffer.writeln('#${i + 1} [${p.startTimeFormatted} - ${p.endTimeFormatted}] ($dur сек): "${p.text}"');
+      final startSec = (p.startMs / 1000.0).toStringAsFixed(1);
+      final endSec = (p.endMs / 1000.0).toStringAsFixed(1);
+      buffer.writeln('#${i + 1} [${p.startTimeFormatted} - ${p.endTimeFormatted}] (${startSec}с - ${endSec}с, длит: $dur с): "${p.text}"');
     }
 
     final isCliffhangerMode = targetDurationSec <= 0;
+    final minDur = targetDurationSec > 0
+        ? (targetDurationSec <= 30 ? 22 : (targetDurationSec * 0.75).round())
+        : 25;
+    final maxDur = targetDurationSec > 0
+        ? (targetDurationSec <= 30 ? 29 : (targetDurationSec * 1.10).round())
+        : 35;
 
     final systemPrompt = isCliffhangerMode
         ? '''
@@ -317,7 +325,10 @@ $transcript
 СТРОГИЕ ПРАВИЛА:
 1. Каждая серия объединяет диапазон фраз от start_phrase до end_phrase (номера с решеткой #).
 2. Серии идут строго подряд без пропусков (серия 2 начинается со следующей фразы после серии 1).
-3. Длительность одной серии должна быть примерно от 35 до 75 секунд (суммируй секунды фраз).
+3. СТРОГИЙ ХРОНОМЕТРАЖ:
+   - Длительность КАЖДОЙ серии должна быть строго от $minDur до $maxDur секунд (цель: ~$targetDurationSec сек)!
+   - Ориентируйся по секундам в скобках [startSec - endSec]: разница между началом start_phrase и концом end_phrase должна составлять от $minDur до $maxDur секунд!
+   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО создавать серии длительностью более $maxDur секунд! Если сюжетная сцена длиннее — разбей её на 2 или 3 части.
 4. Каждая серия должна заканчиваться на сильной смысловой точке или клиффхэнгере.
 5. Для каждой части придумай мощный вирусный заголовок-хук (3-5 слов, без кавычек и точек).
 

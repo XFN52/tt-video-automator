@@ -17,126 +17,146 @@ const RenderPresetSchema = CollectionSchema(
   name: r'RenderPreset',
   id: 8775103300980658858,
   properties: {
-    r'audioPath': PropertySchema(
+    r'addVignette': PropertySchema(
       id: 0,
+      name: r'addVignette',
+      type: IsarType.bool,
+    ),
+    r'antiYoutubeBan': PropertySchema(
+      id: 1,
+      name: r'antiYoutubeBan',
+      type: IsarType.bool,
+    ),
+    r'audioPath': PropertySchema(
+      id: 2,
       name: r'audioPath',
       type: IsarType.string,
     ),
     r'audioVolume': PropertySchema(
-      id: 1,
+      id: 3,
       name: r'audioVolume',
       type: IsarType.double,
     ),
     r'autoNumbering': PropertySchema(
-      id: 2,
+      id: 4,
       name: r'autoNumbering',
       type: IsarType.bool,
     ),
     r'bannerHeightRatio': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'bannerHeightRatio',
       type: IsarType.double,
     ),
     r'bannerPath': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'bannerPath',
       type: IsarType.string,
     ),
     r'bannerPosition': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'bannerPosition',
       type: IsarType.byte,
       enumMap: _RenderPresetbannerPositionEnumValueMap,
     ),
     r'bannerWidthRatio': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'bannerWidthRatio',
       type: IsarType.double,
     ),
     r'bannerXRatio': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'bannerXRatio',
       type: IsarType.double,
     ),
     r'bannerYRatio': PropertySchema(
-      id: 8,
+      id: 10,
       name: r'bannerYRatio',
       type: IsarType.double,
     ),
     r'bgMode': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'bgMode',
       type: IsarType.byte,
       enumMap: _RenderPresetbgModeEnumValueMap,
     ),
     r'colorDelta': PropertySchema(
-      id: 10,
+      id: 12,
       name: r'colorDelta',
       type: IsarType.double,
     ),
+    r'cropZoom': PropertySchema(
+      id: 13,
+      name: r'cropZoom',
+      type: IsarType.double,
+    ),
     r'gameplayVideoPath': PropertySchema(
-      id: 11,
+      id: 14,
       name: r'gameplayVideoPath',
       type: IsarType.string,
     ),
     r'hashCode': PropertySchema(
-      id: 12,
+      id: 15,
       name: r'hashCode',
       type: IsarType.long,
     ),
     r'isMirrored': PropertySchema(
-      id: 13,
+      id: 16,
       name: r'isMirrored',
       type: IsarType.bool,
     ),
     r'name': PropertySchema(
-      id: 14,
+      id: 17,
       name: r'name',
       type: IsarType.string,
     ),
     r'noiseLevel': PropertySchema(
-      id: 15,
+      id: 18,
       name: r'noiseLevel',
       type: IsarType.double,
     ),
     r'numberingYRatio': PropertySchema(
-      id: 16,
+      id: 19,
       name: r'numberingYRatio',
       type: IsarType.double,
     ),
+    r'pitchShift': PropertySchema(
+      id: 20,
+      name: r'pitchShift',
+      type: IsarType.double,
+    ),
     r'showSubtitles': PropertySchema(
-      id: 17,
+      id: 21,
       name: r'showSubtitles',
       type: IsarType.bool,
     ),
     r'speedDelta': PropertySchema(
-      id: 18,
+      id: 22,
       name: r'speedDelta',
       type: IsarType.double,
     ),
     r'subtitlePosition': PropertySchema(
-      id: 19,
+      id: 23,
       name: r'subtitlePosition',
       type: IsarType.byte,
       enumMap: _RenderPresetsubtitlePositionEnumValueMap,
     ),
     r'subtitleYRatio': PropertySchema(
-      id: 20,
+      id: 24,
       name: r'subtitleYRatio',
       type: IsarType.double,
     ),
     r'textHook': PropertySchema(
-      id: 21,
+      id: 25,
       name: r'textHook',
       type: IsarType.string,
     ),
     r'textHookYRatio': PropertySchema(
-      id: 22,
+      id: 26,
       name: r'textHookYRatio',
       type: IsarType.double,
     ),
     r'useWhisper': PropertySchema(
-      id: 23,
+      id: 27,
       name: r'useWhisper',
       type: IsarType.bool,
     )
@@ -195,30 +215,34 @@ void _renderPresetSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.audioPath);
-  writer.writeDouble(offsets[1], object.audioVolume);
-  writer.writeBool(offsets[2], object.autoNumbering);
-  writer.writeDouble(offsets[3], object.bannerHeightRatio);
-  writer.writeString(offsets[4], object.bannerPath);
-  writer.writeByte(offsets[5], object.bannerPosition.index);
-  writer.writeDouble(offsets[6], object.bannerWidthRatio);
-  writer.writeDouble(offsets[7], object.bannerXRatio);
-  writer.writeDouble(offsets[8], object.bannerYRatio);
-  writer.writeByte(offsets[9], object.bgMode.index);
-  writer.writeDouble(offsets[10], object.colorDelta);
-  writer.writeString(offsets[11], object.gameplayVideoPath);
-  writer.writeLong(offsets[12], object.hashCode);
-  writer.writeBool(offsets[13], object.isMirrored);
-  writer.writeString(offsets[14], object.name);
-  writer.writeDouble(offsets[15], object.noiseLevel);
-  writer.writeDouble(offsets[16], object.numberingYRatio);
-  writer.writeBool(offsets[17], object.showSubtitles);
-  writer.writeDouble(offsets[18], object.speedDelta);
-  writer.writeByte(offsets[19], object.subtitlePosition.index);
-  writer.writeDouble(offsets[20], object.subtitleYRatio);
-  writer.writeString(offsets[21], object.textHook);
-  writer.writeDouble(offsets[22], object.textHookYRatio);
-  writer.writeBool(offsets[23], object.useWhisper);
+  writer.writeBool(offsets[0], object.addVignette);
+  writer.writeBool(offsets[1], object.antiYoutubeBan);
+  writer.writeString(offsets[2], object.audioPath);
+  writer.writeDouble(offsets[3], object.audioVolume);
+  writer.writeBool(offsets[4], object.autoNumbering);
+  writer.writeDouble(offsets[5], object.bannerHeightRatio);
+  writer.writeString(offsets[6], object.bannerPath);
+  writer.writeByte(offsets[7], object.bannerPosition.index);
+  writer.writeDouble(offsets[8], object.bannerWidthRatio);
+  writer.writeDouble(offsets[9], object.bannerXRatio);
+  writer.writeDouble(offsets[10], object.bannerYRatio);
+  writer.writeByte(offsets[11], object.bgMode.index);
+  writer.writeDouble(offsets[12], object.colorDelta);
+  writer.writeDouble(offsets[13], object.cropZoom);
+  writer.writeString(offsets[14], object.gameplayVideoPath);
+  writer.writeLong(offsets[15], object.hashCode);
+  writer.writeBool(offsets[16], object.isMirrored);
+  writer.writeString(offsets[17], object.name);
+  writer.writeDouble(offsets[18], object.noiseLevel);
+  writer.writeDouble(offsets[19], object.numberingYRatio);
+  writer.writeDouble(offsets[20], object.pitchShift);
+  writer.writeBool(offsets[21], object.showSubtitles);
+  writer.writeDouble(offsets[22], object.speedDelta);
+  writer.writeByte(offsets[23], object.subtitlePosition.index);
+  writer.writeDouble(offsets[24], object.subtitleYRatio);
+  writer.writeString(offsets[25], object.textHook);
+  writer.writeDouble(offsets[26], object.textHookYRatio);
+  writer.writeBool(offsets[27], object.useWhisper);
 }
 
 RenderPreset _renderPresetDeserialize(
@@ -228,36 +252,40 @@ RenderPreset _renderPresetDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = RenderPreset();
-  object.audioPath = reader.readStringOrNull(offsets[0]);
-  object.audioVolume = reader.readDouble(offsets[1]);
-  object.autoNumbering = reader.readBool(offsets[2]);
-  object.bannerHeightRatio = reader.readDoubleOrNull(offsets[3]);
-  object.bannerPath = reader.readStringOrNull(offsets[4]);
+  object.addVignette = reader.readBool(offsets[0]);
+  object.antiYoutubeBan = reader.readBool(offsets[1]);
+  object.audioPath = reader.readStringOrNull(offsets[2]);
+  object.audioVolume = reader.readDouble(offsets[3]);
+  object.autoNumbering = reader.readBool(offsets[4]);
+  object.bannerHeightRatio = reader.readDoubleOrNull(offsets[5]);
+  object.bannerPath = reader.readStringOrNull(offsets[6]);
   object.bannerPosition = _RenderPresetbannerPositionValueEnumMap[
-          reader.readByteOrNull(offsets[5])] ??
+          reader.readByteOrNull(offsets[7])] ??
       BannerPosition.top;
-  object.bannerWidthRatio = reader.readDoubleOrNull(offsets[6]);
-  object.bannerXRatio = reader.readDoubleOrNull(offsets[7]);
-  object.bannerYRatio = reader.readDoubleOrNull(offsets[8]);
+  object.bannerWidthRatio = reader.readDoubleOrNull(offsets[8]);
+  object.bannerXRatio = reader.readDoubleOrNull(offsets[9]);
+  object.bannerYRatio = reader.readDoubleOrNull(offsets[10]);
   object.bgMode =
-      _RenderPresetbgModeValueEnumMap[reader.readByteOrNull(offsets[9])] ??
+      _RenderPresetbgModeValueEnumMap[reader.readByteOrNull(offsets[11])] ??
           BackgroundMode.blur;
-  object.colorDelta = reader.readDouble(offsets[10]);
-  object.gameplayVideoPath = reader.readStringOrNull(offsets[11]);
+  object.colorDelta = reader.readDouble(offsets[12]);
+  object.cropZoom = reader.readDouble(offsets[13]);
+  object.gameplayVideoPath = reader.readStringOrNull(offsets[14]);
   object.id = id;
-  object.isMirrored = reader.readBool(offsets[13]);
-  object.name = reader.readString(offsets[14]);
-  object.noiseLevel = reader.readDouble(offsets[15]);
-  object.numberingYRatio = reader.readDouble(offsets[16]);
-  object.showSubtitles = reader.readBool(offsets[17]);
-  object.speedDelta = reader.readDouble(offsets[18]);
+  object.isMirrored = reader.readBool(offsets[16]);
+  object.name = reader.readString(offsets[17]);
+  object.noiseLevel = reader.readDouble(offsets[18]);
+  object.numberingYRatio = reader.readDouble(offsets[19]);
+  object.pitchShift = reader.readDouble(offsets[20]);
+  object.showSubtitles = reader.readBool(offsets[21]);
+  object.speedDelta = reader.readDouble(offsets[22]);
   object.subtitlePosition = _RenderPresetsubtitlePositionValueEnumMap[
-          reader.readByteOrNull(offsets[19])] ??
+          reader.readByteOrNull(offsets[23])] ??
       SubtitlePosition.top;
-  object.subtitleYRatio = reader.readDouble(offsets[20]);
-  object.textHook = reader.readStringOrNull(offsets[21]);
-  object.textHookYRatio = reader.readDouble(offsets[22]);
-  object.useWhisper = reader.readBool(offsets[23]);
+  object.subtitleYRatio = reader.readDouble(offsets[24]);
+  object.textHook = reader.readStringOrNull(offsets[25]);
+  object.textHookYRatio = reader.readDouble(offsets[26]);
+  object.useWhisper = reader.readBool(offsets[27]);
   return object;
 }
 
@@ -269,57 +297,65 @@ P _renderPresetDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readStringOrNull(offset)) as P;
-    case 1:
-      return (reader.readDouble(offset)) as P;
-    case 2:
       return (reader.readBool(offset)) as P;
-    case 3:
-      return (reader.readDoubleOrNull(offset)) as P;
-    case 4:
+    case 1:
+      return (reader.readBool(offset)) as P;
+    case 2:
       return (reader.readStringOrNull(offset)) as P;
+    case 3:
+      return (reader.readDouble(offset)) as P;
+    case 4:
+      return (reader.readBool(offset)) as P;
     case 5:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 6:
+      return (reader.readStringOrNull(offset)) as P;
+    case 7:
       return (_RenderPresetbannerPositionValueEnumMap[
               reader.readByteOrNull(offset)] ??
           BannerPosition.top) as P;
-    case 6:
-      return (reader.readDoubleOrNull(offset)) as P;
-    case 7:
-      return (reader.readDoubleOrNull(offset)) as P;
     case 8:
       return (reader.readDoubleOrNull(offset)) as P;
     case 9:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 10:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 11:
       return (_RenderPresetbgModeValueEnumMap[reader.readByteOrNull(offset)] ??
           BackgroundMode.blur) as P;
-    case 10:
-      return (reader.readDouble(offset)) as P;
-    case 11:
-      return (reader.readStringOrNull(offset)) as P;
     case 12:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 13:
-      return (reader.readBool(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 14:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 15:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 16:
-      return (reader.readDouble(offset)) as P;
-    case 17:
       return (reader.readBool(offset)) as P;
+    case 17:
+      return (reader.readString(offset)) as P;
     case 18:
       return (reader.readDouble(offset)) as P;
     case 19:
-      return (_RenderPresetsubtitlePositionValueEnumMap[
-              reader.readByteOrNull(offset)] ??
-          SubtitlePosition.top) as P;
+      return (reader.readDouble(offset)) as P;
     case 20:
       return (reader.readDouble(offset)) as P;
     case 21:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 22:
       return (reader.readDouble(offset)) as P;
     case 23:
+      return (_RenderPresetsubtitlePositionValueEnumMap[
+              reader.readByteOrNull(offset)] ??
+          SubtitlePosition.top) as P;
+    case 24:
+      return (reader.readDouble(offset)) as P;
+    case 25:
+      return (reader.readStringOrNull(offset)) as P;
+    case 26:
+      return (reader.readDouble(offset)) as P;
+    case 27:
       return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -447,6 +483,26 @@ extension RenderPresetQueryWhere
 
 extension RenderPresetQueryFilter
     on QueryBuilder<RenderPreset, RenderPreset, QFilterCondition> {
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      addVignetteEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'addVignette',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      antiYoutubeBanEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'antiYoutubeBan',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
       audioPathIsNull() {
     return QueryBuilder.apply(this, (query) {
@@ -1345,6 +1401,72 @@ extension RenderPresetQueryFilter
   }
 
   QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      cropZoomEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cropZoom',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      cropZoomGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cropZoom',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      cropZoomLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cropZoom',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      cropZoomBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cropZoom',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
       gameplayVideoPathIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1884,6 +2006,72 @@ extension RenderPresetQueryFilter
   }
 
   QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      pitchShiftEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'pitchShift',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      pitchShiftGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'pitchShift',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      pitchShiftLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'pitchShift',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      pitchShiftBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'pitchShift',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
       showSubtitlesEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -2320,6 +2508,33 @@ extension RenderPresetQueryLinks
 
 extension RenderPresetQuerySortBy
     on QueryBuilder<RenderPreset, RenderPreset, QSortBy> {
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortByAddVignette() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'addVignette', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      sortByAddVignetteDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'addVignette', Sort.desc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      sortByAntiYoutubeBan() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'antiYoutubeBan', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      sortByAntiYoutubeBanDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'antiYoutubeBan', Sort.desc);
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortByAudioPath() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'audioPath', Sort.asc);
@@ -2464,6 +2679,18 @@ extension RenderPresetQuerySortBy
     });
   }
 
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortByCropZoom() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cropZoom', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortByCropZoomDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cropZoom', Sort.desc);
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
       sortByGameplayVideoPath() {
     return QueryBuilder.apply(this, (query) {
@@ -2539,6 +2766,19 @@ extension RenderPresetQuerySortBy
       sortByNumberingYRatioDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'numberingYRatio', Sort.desc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortByPitchShift() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pitchShift', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      sortByPitchShiftDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pitchShift', Sort.desc);
     });
   }
 
@@ -2638,6 +2878,33 @@ extension RenderPresetQuerySortBy
 
 extension RenderPresetQuerySortThenBy
     on QueryBuilder<RenderPreset, RenderPreset, QSortThenBy> {
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenByAddVignette() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'addVignette', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      thenByAddVignetteDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'addVignette', Sort.desc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      thenByAntiYoutubeBan() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'antiYoutubeBan', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      thenByAntiYoutubeBanDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'antiYoutubeBan', Sort.desc);
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenByAudioPath() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'audioPath', Sort.asc);
@@ -2782,6 +3049,18 @@ extension RenderPresetQuerySortThenBy
     });
   }
 
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenByCropZoom() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cropZoom', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenByCropZoomDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cropZoom', Sort.desc);
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
       thenByGameplayVideoPath() {
     return QueryBuilder.apply(this, (query) {
@@ -2869,6 +3148,19 @@ extension RenderPresetQuerySortThenBy
       thenByNumberingYRatioDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'numberingYRatio', Sort.desc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenByPitchShift() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pitchShift', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      thenByPitchShiftDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pitchShift', Sort.desc);
     });
   }
 
@@ -2968,6 +3260,19 @@ extension RenderPresetQuerySortThenBy
 
 extension RenderPresetQueryWhereDistinct
     on QueryBuilder<RenderPreset, RenderPreset, QDistinct> {
+  QueryBuilder<RenderPreset, RenderPreset, QDistinct> distinctByAddVignette() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'addVignette');
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QDistinct>
+      distinctByAntiYoutubeBan() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'antiYoutubeBan');
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QDistinct> distinctByAudioPath(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -3040,6 +3345,12 @@ extension RenderPresetQueryWhereDistinct
     });
   }
 
+  QueryBuilder<RenderPreset, RenderPreset, QDistinct> distinctByCropZoom() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cropZoom');
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QDistinct>
       distinctByGameplayVideoPath({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -3077,6 +3388,12 @@ extension RenderPresetQueryWhereDistinct
       distinctByNumberingYRatio() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'numberingYRatio');
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QDistinct> distinctByPitchShift() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'pitchShift');
     });
   }
 
@@ -3133,6 +3450,18 @@ extension RenderPresetQueryProperty
   QueryBuilder<RenderPreset, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<RenderPreset, bool, QQueryOperations> addVignetteProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'addVignette');
+    });
+  }
+
+  QueryBuilder<RenderPreset, bool, QQueryOperations> antiYoutubeBanProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'antiYoutubeBan');
     });
   }
 
@@ -3206,6 +3535,12 @@ extension RenderPresetQueryProperty
     });
   }
 
+  QueryBuilder<RenderPreset, double, QQueryOperations> cropZoomProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cropZoom');
+    });
+  }
+
   QueryBuilder<RenderPreset, String?, QQueryOperations>
       gameplayVideoPathProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -3241,6 +3576,12 @@ extension RenderPresetQueryProperty
       numberingYRatioProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'numberingYRatio');
+    });
+  }
+
+  QueryBuilder<RenderPreset, double, QQueryOperations> pitchShiftProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'pitchShift');
     });
   }
 

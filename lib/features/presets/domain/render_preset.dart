@@ -25,6 +25,10 @@ class RenderPreset {
   double speedDelta = 0.02;
   double colorDelta = 0.03;
   double noiseLevel = 1.0;
+  bool antiYoutubeBan = false;
+  double pitchShift = 0.08;
+  double cropZoom = 0.30;
+  bool addVignette = true;
   String? bannerPath;
   double? bannerXRatio = 0.0;
   double? bannerYRatio = 0.122;

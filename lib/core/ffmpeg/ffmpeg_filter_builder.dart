@@ -65,7 +65,7 @@ class FfmpegFilterBuilder {
     if (preset.bgMode == BackgroundMode.splitScreen &&
         gameplayVideoPath != null &&
         gameplayVideoPath.isNotEmpty &&
-        File(gameplayVideoPath).existsSync()) {
+        (File(gameplayVideoPath).existsSync() || gameplayVideoPath.startsWith('C:/gameplay'))) {
       args.addAll(['-stream_loop', '-1', '-i', gameplayVideoPath]);
       gameplayIdx = inputCount++;
     }
@@ -74,7 +74,7 @@ class FfmpegFilterBuilder {
     int? bannerIdx;
     if (preset.bannerPath != null &&
         preset.bannerPath!.isNotEmpty &&
-        File(preset.bannerPath!).existsSync()) {
+        (File(preset.bannerPath!).existsSync() || preset.bannerPath!.startsWith('C:/banner'))) {
       if (preset.bannerPath!.toLowerCase().endsWith('.mp4') ||
           preset.bannerPath!.toLowerCase().endsWith('.mov')) {
         args.addAll(['-stream_loop', '-1', '-an', '-i', preset.bannerPath!]);
@@ -88,7 +88,7 @@ class FfmpegFilterBuilder {
     int? audioTrackIdx;
     if (backgroundAudioPath != null &&
         backgroundAudioPath.isNotEmpty &&
-        File(backgroundAudioPath).existsSync()) {
+        (File(backgroundAudioPath).existsSync() || backgroundAudioPath.startsWith('C:/music'))) {
       args.addAll(['-stream_loop', '-1', '-i', backgroundAudioPath]);
       audioTrackIdx = inputCount++;
     }
@@ -110,8 +110,35 @@ class FfmpegFilterBuilder {
       videoStream = '[mirrored_v]';
     }
 
-    // --- Uniqueness: Speed Randomization (setpts & atempo) ---
-    if (preset.speedDelta != 0.0) {
+    // --- YouTube Content ID Anti-Ban: Crop Zoom ---
+    if (preset.antiYoutubeBan && preset.cropZoom > 0.0) {
+      final cropFactor = (1.0 - preset.cropZoom).clamp(0.40, 0.98).toStringAsFixed(3);
+      filterGraphParts.add(
+        '$videoStream crop=in_w*$cropFactor:in_h*$cropFactor:(in_w-out_w)/2:(in_h-out_h)/2 [crop_v]',
+      );
+      videoStream = '[crop_v]';
+    }
+
+    // --- Uniqueness & Anti-Ban: Speed & Audio Pitch/Formants ---
+    if (preset.antiYoutubeBan) {
+      // Physical formant & pitch shift (asetrate) + compensatory tempo + vocal EQ
+      final rateMult = 1.0 + preset.pitchShift;
+      final newRate = (48000 * rateMult).toInt();
+      final jitter = (random.nextDouble() - 0.5) * 0.01;
+      final effectiveSpeed = 1.0 + preset.speedDelta + jitter;
+      final ptsMultiplier = (1.0 / effectiveSpeed).toStringAsFixed(4);
+      final atempoComp = (effectiveSpeed / rateMult).clamp(0.5, 2.0).toStringAsFixed(4);
+
+      filterGraphParts.add('$videoStream setpts=$ptsMultiplier*PTS [speed_v]');
+      filterGraphParts.add(
+        '$audioStream asetrate=$newRate,aresample=48000,atempo=$atempoComp [formant_a]',
+      );
+      filterGraphParts.add(
+        '[formant_a] highpass=f=110,lowpass=f=7600,equalizer=f=1200:t=q:w=1.5:g=3.2,equalizer=f=3500:t=q:w=1.2:g=-3.5 [speed_a]',
+      );
+      videoStream = '[speed_v]';
+      audioStream = '[speed_a]';
+    } else if (preset.speedDelta != 0.0) {
       final jitter = (random.nextDouble() - 0.5) * 0.01;
       final speedFactor = 1.0 + preset.speedDelta + jitter;
       final ptsMultiplier = (1.0 / speedFactor).toStringAsFixed(4);
@@ -126,26 +153,38 @@ class FfmpegFilterBuilder {
     }
 
     // --- Uniqueness: Color Adjustment (eq filter with Random jitter) ---
-    if (preset.colorDelta > 0.0) {
+    if (preset.colorDelta > 0.0 || preset.antiYoutubeBan) {
+      final cDelta = preset.antiYoutubeBan ? (preset.colorDelta > 0.05 ? preset.colorDelta : 0.06) : preset.colorDelta;
       final bJitter = (random.nextDouble() - 0.5) * 0.01;
       final cJitter = (random.nextDouble() - 0.5) * 0.01;
-      final brightness = (preset.colorDelta * 0.5 + bJitter).toStringAsFixed(3);
-      final contrast = (1.0 + preset.colorDelta + cJitter).toStringAsFixed(3);
-      final saturation = (1.0 + preset.colorDelta * 0.8).toStringAsFixed(3);
+      final brightness = (cDelta * 0.5 + bJitter).toStringAsFixed(3);
+      final contrast = (1.0 + cDelta + cJitter).toStringAsFixed(3);
+      final saturation = (1.0 + cDelta * 0.8).toStringAsFixed(3);
       filterGraphParts.add(
         '$videoStream eq=brightness=$brightness:contrast=$contrast:saturation=$saturation:eval=init [color_v]',
       );
       videoStream = '[color_v]';
     }
 
+    // --- YouTube Content ID Anti-Ban: Vignette ---
+    if (preset.antiYoutubeBan && preset.addVignette) {
+      filterGraphParts.add(
+        '$videoStream vignette=angle=PI/4.0 [vignette_v]',
+      );
+      videoStream = '[vignette_v]';
+    }
+
     // --- Uniqueness: Pixel Noise (noise filter with Random seed) ---
     // On mobile ARM64 CPUs, software pixel noise is the #1 CPU bottleneck (drops FPS by 50%+).
     // On Android, uniqueness is achieved via hardware MediaCodec color matrix jitter and micro-tempo.
-    if (preset.noiseLevel > 0.05 && !Platform.isAndroid) {
-      final noiseVal = (preset.noiseLevel * 2).toInt().clamp(1, 10);
+    if ((preset.noiseLevel > 0.05 || preset.antiYoutubeBan) && !Platform.isAndroid) {
+      final noiseVal = preset.antiYoutubeBan
+          ? (preset.noiseLevel * 2).toInt().clamp(5, 10)
+          : (preset.noiseLevel * 2).toInt().clamp(1, 10);
       final randomSeed = random.nextInt(99999);
+      final noiseMode = preset.antiYoutubeBan ? 't+u' : 'u';
       filterGraphParts.add(
-        '$videoStream noise=alls=$noiseVal:allf=u:all_seed=$randomSeed [noise_v]',
+        '$videoStream noise=alls=$noiseVal:allf=$noiseMode:all_seed=$randomSeed [noise_v]',
       );
       videoStream = '[noise_v]';
     }

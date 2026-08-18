@@ -27,7 +27,7 @@ class AiSmartCutDialog extends ConsumerStatefulWidget {
 }
 
 class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
-  int _targetDuration = 50; // seconds
+  int _targetDuration = 28; // seconds (28s YouTube Content ID safe limit)
   bool _isAnalyzing = false;
   String _statusMessage = '';
   double _progress = 0.0;
@@ -325,6 +325,15 @@ class _AiSmartCutDialogState extends ConsumerState<AiSmartCutDialog> {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
+                  ChoiceChip(
+                    avatar: const Icon(Icons.shield_outlined, size: 16, color: Color(0xFFFE2C55)),
+                    label: const Text('🛡️ 25–30 сек (YouTube Анти-бан)'),
+                    selected: _targetDuration == 28,
+                    selectedColor: const Color(0xFFFE2C55).withValues(alpha: 0.25),
+                    onSelected: _isAnalyzing
+                        ? null
+                        : (_) => setState(() => _targetDuration = 28),
+                  ),
                   ChoiceChip(
                     label: const Text('🔥 Авто-Клиффхэнгер'),
                     selected: _targetDuration == 0,

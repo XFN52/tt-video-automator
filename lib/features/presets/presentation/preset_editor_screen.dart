@@ -33,6 +33,10 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
   late double _speedDelta;
   late double _colorDelta;
   late double _noiseLevel;
+  late bool _antiYoutubeBan;
+  late double _pitchShift;
+  late double _cropZoom;
+  late bool _addVignette;
   String? _bannerPath;
   String? _gameplayVideoPath;
   late TextEditingController _textHookController;
@@ -65,7 +69,20 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
     _isMirrored = p?.isMirrored ?? false;
     _speedDelta = p?.speedDelta ?? 0.02;
     _colorDelta = p?.colorDelta ?? 0.03;
-    _noiseLevel = p?.noiseLevel ?? 1.0;
+    final rawNoise = p?.noiseLevel;
+    _noiseLevel = (rawNoise == null || rawNoise.isNaN || rawNoise.isInfinite)
+        ? 1.0
+        : rawNoise.clamp(0.0, 5.0);
+    _antiYoutubeBan = p?.antiYoutubeBan ?? false;
+    final rawPitch = p?.pitchShift;
+    _pitchShift = (rawPitch == null || rawPitch.isNaN || rawPitch.isInfinite)
+        ? 0.08
+        : rawPitch.clamp(0.02, 0.15);
+    final rawCrop = p?.cropZoom;
+    _cropZoom = (rawCrop == null || rawCrop.isNaN || rawCrop.isInfinite)
+        ? 0.30
+        : rawCrop.clamp(0.10, 0.50);
+    _addVignette = p?.addVignette ?? true;
     _bannerPath = p?.bannerPath;
     _bannerPosition = p?.bannerPosition ?? BannerPosition.top;
     _bannerXRatio = p?.bannerXRatio ?? 0.0;
@@ -111,6 +128,10 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
         ..speedDelta = _speedDelta
         ..colorDelta = _colorDelta
         ..noiseLevel = _noiseLevel
+        ..antiYoutubeBan = _antiYoutubeBan
+        ..pitchShift = _pitchShift
+        ..cropZoom = _cropZoom
+        ..addVignette = _addVignette
         ..bannerPath = _bannerPath
         ..bannerPosition = _bannerPosition
         ..bannerXRatio = _bannerXRatio
@@ -546,6 +567,127 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                     setState(() => _noiseLevel = val);
                   },
                 ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Row(
+          children: [
+            Icon(Icons.shield_outlined, color: Color(0xFFFE2C55), size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Защита YouTube Content ID (Анти-Блокировка)',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: _antiYoutubeBan
+                ? const BorderSide(color: Color(0xFFFE2C55), width: 1.5)
+                : BorderSide.none,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Режим глубокой защиты от банов YouTube / Reels',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text(
+                    'Применяет физический сдвиг формант связок голоса (asetrate), эквалайзер спектра речи, кадрирование 30% и виньетирование для гарантированного обхода детекции.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  value: _antiYoutubeBan,
+                  activeTrackColor: const Color(0xFFFE2C55),
+                  onChanged: (val) => setState(() => _antiYoutubeBan = val),
+                ),
+                if (_antiYoutubeBan) ...[
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Сдвиг тона и формант связок (голос):',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      Text(
+                        '+${(_pitchShift * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Color(0xFFFE2C55),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Физически пересчитывает частоту дискретизации (asetrate), маскируя тембр актеров под новый голос без изменения скорости.',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                  Slider(
+                    value: (_pitchShift.isNaN || _pitchShift.isInfinite) ? 0.08 : _pitchShift.clamp(0.02, 0.15),
+                    min: 0.02,
+                    max: 0.15,
+                    divisions: 13,
+                    label: '+${(((_pitchShift.isNaN || _pitchShift.isInfinite) ? 0.08 : _pitchShift) * 100).toStringAsFixed(0)}%',
+                    activeColor: const Color(0xFFFE2C55),
+                    onChanged: (val) => setState(() => _pitchShift = val),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Кадрирование кадра (Anti-CNN Zoom):',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      Text(
+                        '${(((_cropZoom.isNaN || _cropZoom.isInfinite) ? 0.30 : _cropZoom) * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Color(0xFFFE2C55),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Срезает края кадра, ломая нейросетевое сопоставление визуальных дескрипторов видео.',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                  Slider(
+                    value: (_cropZoom.isNaN || _cropZoom.isInfinite) ? 0.30 : _cropZoom.clamp(0.10, 0.50),
+                    min: 0.10,
+                    max: 0.50,
+                    divisions: 8,
+                    label: '${(((_cropZoom.isNaN || _cropZoom.isInfinite) ? 0.30 : _cropZoom) * 100).toStringAsFixed(0)}%',
+                    activeColor: const Color(0xFFFE2C55),
+                    onChanged: (val) => setState(() => _cropZoom = val),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Кинематографическая виньетка (Vignette)',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    subtitle: const Text(
+                      'Затемняет углы видео, дополнительно разрушая цветовую гистограмму кадра.',
+                      style: TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                    value: _addVignette,
+                    activeTrackColor: const Color(0xFFFE2C55),
+                    onChanged: (val) => setState(() => _addVignette = val),
+                  ),
+                ],
               ],
             ),
           ),
