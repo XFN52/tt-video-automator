@@ -104,34 +104,39 @@ const RenderPresetSchema = CollectionSchema(
       name: r'numberingYRatio',
       type: IsarType.double,
     ),
-    r'speedDelta': PropertySchema(
+    r'showSubtitles': PropertySchema(
       id: 17,
+      name: r'showSubtitles',
+      type: IsarType.bool,
+    ),
+    r'speedDelta': PropertySchema(
+      id: 18,
       name: r'speedDelta',
       type: IsarType.double,
     ),
     r'subtitlePosition': PropertySchema(
-      id: 18,
+      id: 19,
       name: r'subtitlePosition',
       type: IsarType.byte,
       enumMap: _RenderPresetsubtitlePositionEnumValueMap,
     ),
     r'subtitleYRatio': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'subtitleYRatio',
       type: IsarType.double,
     ),
     r'textHook': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'textHook',
       type: IsarType.string,
     ),
     r'textHookYRatio': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'textHookYRatio',
       type: IsarType.double,
     ),
     r'useWhisper': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'useWhisper',
       type: IsarType.bool,
     )
@@ -207,12 +212,13 @@ void _renderPresetSerialize(
   writer.writeString(offsets[14], object.name);
   writer.writeDouble(offsets[15], object.noiseLevel);
   writer.writeDouble(offsets[16], object.numberingYRatio);
-  writer.writeDouble(offsets[17], object.speedDelta);
-  writer.writeByte(offsets[18], object.subtitlePosition.index);
-  writer.writeDouble(offsets[19], object.subtitleYRatio);
-  writer.writeString(offsets[20], object.textHook);
-  writer.writeDouble(offsets[21], object.textHookYRatio);
-  writer.writeBool(offsets[22], object.useWhisper);
+  writer.writeBool(offsets[17], object.showSubtitles);
+  writer.writeDouble(offsets[18], object.speedDelta);
+  writer.writeByte(offsets[19], object.subtitlePosition.index);
+  writer.writeDouble(offsets[20], object.subtitleYRatio);
+  writer.writeString(offsets[21], object.textHook);
+  writer.writeDouble(offsets[22], object.textHookYRatio);
+  writer.writeBool(offsets[23], object.useWhisper);
 }
 
 RenderPreset _renderPresetDeserialize(
@@ -243,14 +249,15 @@ RenderPreset _renderPresetDeserialize(
   object.name = reader.readString(offsets[14]);
   object.noiseLevel = reader.readDouble(offsets[15]);
   object.numberingYRatio = reader.readDouble(offsets[16]);
-  object.speedDelta = reader.readDouble(offsets[17]);
+  object.showSubtitles = reader.readBool(offsets[17]);
+  object.speedDelta = reader.readDouble(offsets[18]);
   object.subtitlePosition = _RenderPresetsubtitlePositionValueEnumMap[
-          reader.readByteOrNull(offsets[18])] ??
+          reader.readByteOrNull(offsets[19])] ??
       SubtitlePosition.top;
-  object.subtitleYRatio = reader.readDouble(offsets[19]);
-  object.textHook = reader.readStringOrNull(offsets[20]);
-  object.textHookYRatio = reader.readDouble(offsets[21]);
-  object.useWhisper = reader.readBool(offsets[22]);
+  object.subtitleYRatio = reader.readDouble(offsets[20]);
+  object.textHook = reader.readStringOrNull(offsets[21]);
+  object.textHookYRatio = reader.readDouble(offsets[22]);
+  object.useWhisper = reader.readBool(offsets[23]);
   return object;
 }
 
@@ -299,18 +306,20 @@ P _renderPresetDeserializeProp<P>(
     case 16:
       return (reader.readDouble(offset)) as P;
     case 17:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 18:
+      return (reader.readDouble(offset)) as P;
+    case 19:
       return (_RenderPresetsubtitlePositionValueEnumMap[
               reader.readByteOrNull(offset)] ??
           SubtitlePosition.top) as P;
-    case 19:
-      return (reader.readDouble(offset)) as P;
     case 20:
-      return (reader.readStringOrNull(offset)) as P;
-    case 21:
       return (reader.readDouble(offset)) as P;
+    case 21:
+      return (reader.readStringOrNull(offset)) as P;
     case 22:
+      return (reader.readDouble(offset)) as P;
+    case 23:
       return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1875,6 +1884,16 @@ extension RenderPresetQueryFilter
   }
 
   QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
+      showSubtitlesEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'showSubtitles',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterFilterCondition>
       speedDeltaEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -2523,6 +2542,19 @@ extension RenderPresetQuerySortBy
     });
   }
 
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortByShowSubtitles() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'showSubtitles', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      sortByShowSubtitlesDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'showSubtitles', Sort.desc);
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> sortBySpeedDelta() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'speedDelta', Sort.asc);
@@ -2840,6 +2872,19 @@ extension RenderPresetQuerySortThenBy
     });
   }
 
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenByShowSubtitles() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'showSubtitles', Sort.asc);
+    });
+  }
+
+  QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy>
+      thenByShowSubtitlesDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'showSubtitles', Sort.desc);
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QAfterSortBy> thenBySpeedDelta() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'speedDelta', Sort.asc);
@@ -3035,6 +3080,13 @@ extension RenderPresetQueryWhereDistinct
     });
   }
 
+  QueryBuilder<RenderPreset, RenderPreset, QDistinct>
+      distinctByShowSubtitles() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'showSubtitles');
+    });
+  }
+
   QueryBuilder<RenderPreset, RenderPreset, QDistinct> distinctBySpeedDelta() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'speedDelta');
@@ -3189,6 +3241,12 @@ extension RenderPresetQueryProperty
       numberingYRatioProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'numberingYRatio');
+    });
+  }
+
+  QueryBuilder<RenderPreset, bool, QQueryOperations> showSubtitlesProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'showSubtitles');
     });
   }
 

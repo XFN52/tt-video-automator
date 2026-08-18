@@ -6,11 +6,9 @@ import '../../presets/domain/render_preset.dart';
 import '../../subtitles/domain/subtitle_token.dart';
 import '../../tasks/domain/video_task.dart';
 
-/**
- * High-performance Zero-Copy Native GPU Video Rendering Engine bridge for Android.
- * Runs hardware-accelerated OpenGL ES 3.0 shaders + MediaCodec Surface-to-Surface
- * video rendering pipeline with 100-200+ FPS rendering speeds.
- */
+/// High-performance Zero-Copy Native GPU Video Rendering Engine bridge for Android.
+/// Runs hardware-accelerated OpenGL ES 3.0 shaders + MediaCodec Surface-to-Surface
+/// video rendering pipeline with 100-200+ FPS rendering speeds.
 class NativeGpuEngine {
   static final NativeGpuEngine instance = NativeGpuEngine._internal();
   NativeGpuEngine._internal() {
@@ -69,12 +67,14 @@ class NativeGpuEngine {
           ? (_parseTimeToMs(task.endTime!) * 1000)
           : 9223372036854775807; // Long.MAX_VALUE
 
-      final subtitlesList = tokens?.map((t) => {
-            'word': t.word,
-            'text': t.word,
-            'startMs': t.startMs,
-            'endMs': t.endMs,
-          }).toList();
+      final subtitlesList = (preset.useWhisper && preset.showSubtitles)
+          ? tokens?.map((t) => {
+                'word': t.word,
+                'text': t.word,
+                'startMs': t.startMs,
+                'endMs': t.endMs,
+              }).toList()
+          : null;
 
       final bannerXRatio = preset.bannerXRatio ?? 0.0;
       final bannerYRatio = preset.bannerYRatio ??

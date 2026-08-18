@@ -256,7 +256,7 @@ class FfmpegFilterBuilder {
     }
 
     // --- Subtitles (ASS / Whisper Karaoke) ---
-    if (preset.useWhisper && subtitleAssPath != null && subtitleAssPath.isNotEmpty) {
+    if (preset.useWhisper && preset.showSubtitles && subtitleAssPath != null && subtitleAssPath.isNotEmpty) {
       final safeSubPath = subtitleAssPath.replaceAll('\\', '/').replaceAll(':', '\\:');
       filterGraphParts.add(
         "$videoStream ass='$safeSubPath' [sub_v]",

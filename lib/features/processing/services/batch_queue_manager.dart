@@ -1,8 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import '../../../core/utils/file_utils.dart';
 import '../../../core/utils/storage_path_helper.dart';
 import '../../ai_assistant/data/ai_assistant_service.dart';
 import '../../presets/domain/render_preset.dart';
@@ -287,7 +285,7 @@ class BatchQueueManager extends ChangeNotifier {
         outputFilePath: outputFilePath,
         gameplayVideoPath: preset.gameplayVideoPath,
         backgroundAudioPath: selectedAudioPath,
-        subtitleAssPath: subtitleAssPath,
+        subtitleAssPath: preset.showSubtitles ? subtitleAssPath : null,
         onProgress: (progress) {
           final startOffset = preset.useWhisper ? 0.25 : 0.05;
           final scaledProgress = startOffset + progress * (0.99 - startOffset);

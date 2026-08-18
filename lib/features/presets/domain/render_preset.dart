@@ -35,6 +35,7 @@ class RenderPreset {
   String? audioPath;
   String? gameplayVideoPath;
   bool useWhisper = true;
+  bool showSubtitles = true;
   double audioVolume = 0.08;
 
   // Интерактивные позиции предпросмотра, все в долях от высоты кадра [0..1].
@@ -42,7 +43,7 @@ class RenderPreset {
   // ломать нельзя — при чтении используем эти точные значения, при записи
   // округляем до ближайшего enum-значения для обратной совместимости с
   // остальным пайплайном (ASS writer работает по top/center/bottom).
-  double textHookYRatio = 0.08;    // заголовок/хук вверху на 8%
+  double textHookYRatio = 0.686;   // заголовок/хук на 68.6% (как в стандартном шаблоне)
   double numberingYRatio = 0.033;  // "Часть N" вверху на 3.3%
   double subtitleYRatio = 0.877;   // субтитры внизу на 87.7%
 

@@ -1,200 +1,188 @@
-# TT Video Automator
+# TT Video Automator 🎬⚡
 
-Десктопное приложение на Flutter (Windows) для автоматизированной пакетной уникализации, форматирования длинных видео в вертикальный формат 9:16 (TikTok, Instagram Reels, YouTube Shorts), нарезки на серии, генерации караоке-субтитров через локальный Whisper AI и наложения геймплея, плашек и фоновой музыки через FFmpeg.
+**English** | [Русский](README_RU.md)
 
----
+[![GitHub Stars](https://img.shields.io/github/stars/XFN52/tt-video-automator?style=social)](https://github.com/XFN52/tt-video-automator)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
+[![Platform](https://img.shields.io/badge/Platforms-Windows%20%7C%20Android-blue)](https://github.com/XFN52/tt-video-automator/releases)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-6.x%20%2B%20NVENC-007808?logo=ffmpeg)](https://ffmpeg.org)
+[![Whisper AI](https://img.shields.io/badge/Whisper-AI%20Karaoke-FF6F00)](https://github.com/ggerganov/whisper.cpp)
+[![GPU Engine](https://img.shields.io/badge/GPU%20Engine-OpenGL%20ES%203.0%20(100--200%20FPS)-green)](#-high-speed-zero-copy-gpu-renderer-android)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Что умеет приложение
-
-### 1. Пакетный процессинг и очередь задач
-
-- **Параллельная обработка**: одновременный рендеринг видео в несколько потоков (по умолчанию `ядра_ЦП ~/ 2`, от 3 до 8 воркеров).
-- **Drag-and-Drop**: добавление файлов перетаскиванием в окно программы или через системный диалог.
-- **Персистентность очереди**: состояние задач сохраняется в локальной встроенной базе данных Isar. При аварийном закрытии незавершенные задачи возвращаются в очередь при следующем запуске.
-- **Автосохранение путей**: приложение запоминает папки вывода, исходников, аудио и баннеров в `app_settings.json`.
-
-### 2. Форматирование в 9:16 и уникализация
-
-- **Режимы фона**:
-  - _Размытый фон (Blur)_: центрирование исходного видео с динамическим размытым фоном под соотношение 9:16 (720x1280 / 1080x1920).
-  - _Сплит-скрин (Split-Screen)_: исходное видео размещается в верхней половине экрана, а в нижней циклично воспроизводится видео с геймплеем (GTA V, Minecraft, Subway Surfers и т.д.).
-- **Алгоритмы уникализации для обхода спам-фильтров**:
-  - Микро-изменение скорости видео и аудио (`setpts`, `atempo`).
-  - Цветокоррекция с рандомизацией гаммы, контраста и яркости (`eq`).
-  - Наложение легкого цифрового шума (`noise`).
-  - Горизонтальное зеркалирование (`hflip`).
-  - Спуфинг метаданных EXIF под камеру Apple iPhone 14 Pro / QuickTime Encoder.
-
-### 3. Субтитры Whisper AI и караоке
-
-- **Локальная транскрибация речи**: извлечение аудиодорожки (WAV 16 kHz Mono) и генерация пословных таймкодов через Whisper C++ (`whisper-cli.exe`).
-- **Аппаратное ускорение**: автозагрузка и запуск cuBLAS-бинарника (Nvidia CUDA). При отсутствии совместимого GPU автоматически используется сборка CPU AVX2.
-- **Караоке-стиль ASS**: генерация `.ass` файлов с разметкой `{\k...}` (желто-белая подсветка слов в стиле TikTok, черная обводка).
-- **Точное позиционирование**: поддержка непрерывной координаты высоты субтитров на кадре.
-
-### 4. Оверлеи, текст и фоновая музыка
-
-- **Плашки и баннеры**: наложение PNG-картинок или прозрачных MP4/MOV-видеоплашек.
-- **Текстовый хук и автонумерация**: генерация плашек "Часть 1", "Часть 2" с автопоиском системных шрифтов Windows (Arial, Calibri, Segoe UI) через фильтр `drawtext`.
-- **Фоновая музыка**: случайный выбор трека из указанной папки MP3, автоматическая подгонка громкости и микширование через `amix`.
-
-### 5. Визуальный триммер видео
-
-- Интерактивная установка меток на таймлайне для разбивки длинного ролика на отдельные части.
-- Превью-лента кадров, генерируемая через FFmpeg на лету.
-- Мгновенная отправка созданных фрагментов в главную очередь рендеринга.
-
-### 6. Интерактивный редактор шаблонов (FullPreviewEditor)
-
-- Визуальный холст 9:16 с поддержкой Drag-and-Drop и ресайза для субтитров, текстового хука, нумерации и баннера.
-- Сохранение неограниченного числа пресетов в базу Isar с быстрым переключением на дашборде.
-
-### 7. ИИ Авто-нарезка на серии (AI Smart Cut & Клиффхэнгеры)
-
-- **Интеллектуальная разбивка на серии**: Whisper AI транскрибирует речь с пословными таймкодами, а LLM (DeepSeek V3 / Gemini 3.7 Flash) анализирует смысловые блоки и автоматически разбивает видео на логичные серии (30–45с, 45–60с, 60–90с или авто-клиффхэнгер).
-- **Клиффхэнгеры**: ИИ завершает каждую часть на интригующей фразе для максимального удержания аудитории.
-- **Генерация хуков и постов**: Для каждой серии автоматически создается цепляющий заголовок-хук, текст публикации с призывом к действию (CTA) и пакет вирусных хэштегов, сохраняемых в `*_post.txt` и `*_meta.json`.
-
-### 8. Аппаратный Zero-Copy GPU-рендерер (Android MediaCodec + OpenGL ES 3.0)
-
-- **Сверхвысокая скорость (100–200 FPS)**: На Android обработка выполняется напрямую через системные кодеки `MediaCodec` и шейдеры `OpenGL ES 3.0` без медленного мобильного FFmpeg.
-- **Zero-Copy Pipeline**: Аппаратный декодер передает кадры напрямую в текстуру OpenGL (`GL_TEXTURE_EXTERNAL_OES`), шейдеры накладывают размытие фона (Box Blur), видео-плашки, цветовую коррекцию, цифровой шум и караоке-текст, после чего кадр поступает в аппаратный энкодер.
-- **Плавный прогресс**: Монотонный расчет прогресса с троттлингом (50 мс) и асинхронным сбросом на диск исключает лаги интерфейса.
-
-### 9. Прямая файловая система (Zero-Cache File System)
-
-- **Работа без кэша**: Благодаря `StoragePathHelper` и разрешению `MANAGE_EXTERNAL_STORAGE` приложение работает напрямую с физическими файлами накопителя (`/storage/emulated/0/...`), полностью минуя временный кэш Android.
-
-### 10. Мост интеграции с автопостером (Autoposter Integration Bridge)
-
-- Приложение формирует полный пакет публикации (`*.mp4` + `*_post.txt` + `*_meta.json`) и готово к автоматической отправке на удаленный сервер автопостинга на базе **Camoufox + Xray-core** (подробности в [AUTOPOSTER_API_SPEC.md](AUTOPOSTER_API_SPEC.md)).
+> **All-in-one batch video automation toolkit for TikTok, Instagram Reels, and YouTube Shorts.**  
+> Transform horizontal videos into viral 9:16 vertical shorts with AI auto-cutting, animated Whisper Karaoke subtitles, split-screen gameplay, anti-copyright unique-fication algorithms, and automatic post/hook copywriting via DeepSeek & Gemini.
 
 ---
 
-## Архитектура проекта
+## ⚡ Why TT Video Automator?
+
+Designed specifically for **Faceless Channel Creators**, **Affiliate Marketers (UAP / Arbitrage)**, **Content Agencies**, and **Media Buyers** who need to produce and unique-fy hundreds of high-retention short videos daily without manual editing in Premiere or CapCut.
+
+| Feature | TT Video Automator | Manual Editing (CapCut/Premiere) | Basic Scripts |
+| :--- | :---: | :---: | :---: |
+| **Batch Processing** | 🚀 **Parallel Multi-Worker** | ❌ One by one | ⚠️ Slow single-thread |
+| **Local Whisper AI Karaoke** | ✅ **Built-in Offline (CUDA/CPU)** | ⚠️ Manual typing / Paid Cloud | ❌ No |
+| **AI Smart Cut & Cliffhangers** | 🤖 **DeepSeek / Gemini / Ollama** | ❌ Manual listening & cutting | ❌ No |
+| **Anti-Copyright Unique-fication** | 🛡️ **EXIF Spoof + Noise + EQ + Speed** | ⚠️ Tedious manual tweaks | ⚠️ Simple re-encode |
+| **Android GPU Rendering Speed** | ⚡ **100–200+ FPS (OpenGL ES 3.0)** | ❌ Standard ~30 FPS | ❌ N/A |
+| **Custom Overlays & Branding** | 🎨 **Visual Drag-and-Drop Editor** | ⚠️ Manual keyframing | ❌ Hardcoded coordinates |
+| **Autoposter Integration** | 🌐 **Generates MP4 + Post + Meta JSON** | ❌ Manual publishing | ❌ No |
+
+---
+
+## 🚀 Key Features
+
+### 1. 🤖 AI Smart Cut & Auto-Episode Splitter
+- **Intelligent Story Parsing**: Local Whisper AI transcribes the audio with word-level timestamps, then LLMs (**DeepSeek V3**, **Google Gemini 3.7 Flash**, **OpenAI**, or local **Ollama**) detect natural narrative boundaries.
+- **Viral Cliffhangers**: Splits full-length movies, podcasts, or streams into binge-worthy 30–60s episodes ending right on tension peaks to maximize viewer retention and comments.
+- **Automated Copywriting**: Generates clickbait hook titles, description copy with Call-To-Action (CTA), and viral hashtags exported directly into `<video>_post.txt` and `<video>_meta.json`.
+
+### 2. 🛡️ Advanced Anti-Copyright & Video Unique-fication Engine
+Bypass automated TikTok/Instagram/YouTube spam filters and duplicate content detectors:
+- **EXIF Metadata Spoofing**: Injects authentic camera metadata (Apple iPhone 14 Pro, QuickTime 7.7.1 encoder tags).
+- **Subtle Speed Warping**: Micro-tempo adjustments (`setpts`, `atempo`) without audible pitch shift.
+- **Dynamic Color Grading**: Randomizes gamma, saturation, and contrast offsets (`eq`).
+- **Subpixel Digital Noise**: Adds imperceptible grain overlay (`noise`) to break hash signatures.
+- **Horizontal Flipping**: Optional smart mirror transform (`hflip`).
+
+### 3. 🎤 Local Whisper AI Karaoke Subtitles
+- **100% Offline & Free**: Transcribes audio using `whisper.cpp` (Nvidia CUDA cuBLAS & CPU AVX2 acceleration) — no expensive cloud API subscriptions needed.
+- **TikTok-Style Highlight**: Generates styled `.ass` karaoke subtitles with word-by-word active glow effect.
+- **Independent Show/Hide Control**: Keep Whisper active for AI hook/post generation while hiding on-screen subtitle burn-in whenever you need clean video output.
+
+### 4. 🎛️ 9:16 Reformatting & Split-Screen Gameplay
+- **Dynamic Blur Background**: Centers 16:9 landscape footage over an aesthetically blurred vertical 9:16 background.
+- **Split-Screen Mode**: Places main video on the top half and automatically loops viral background gameplay (Subway Surfers, GTA V, Minecraft Parkour) on the bottom half.
+
+### 5. 🎨 Interactive Drag-and-Drop Overlay Editor (`FullPreviewEditor`)
+- Live 9:16 interactive canvas with real-time mouse/touch drag-and-drop repositioning and scaling for:
+  - Video and image watermark banners (PNG / transparent MP4 / MOV).
+  - Top viral hook titles.
+  - "Part 1", "Part 2" episodic tags.
+  - Dynamic karaoke subtitles.
+- Unlimited custom presets saved locally in Isar NoSQL Database.
+
+### 6. ⚡ High-Speed Zero-Copy GPU Renderer (Android)
+- **100–200+ FPS Native Rendering**: Bypasses slow mobile FFmpeg using direct hardware `MediaCodec` + `OpenGL ES 3.0` surface-to-surface pipeline.
+- **Zero-Cache File Management**: Direct storage IO via `StoragePathHelper` (`/storage/emulated/0/...`) prevents storage clutter.
+
+### 7. 🌐 Autoposter Bridge Ready
+Outputs ready-to-publish packages (`.mp4` + `_post.txt` + `_meta.json`) pre-formatted for remote automation servers based on **Camoufox Browser + Xray-core** (see [AUTOPOSTER_API_SPEC.md](AUTOPOSTER_API_SPEC.md)).
+
+---
+
+## 🏗️ Architecture & Tech Stack
 
 ```
 lib/
 ├── core/
-│   ├── constants/            # Разрешения рендера и константы по умолчанию
-│   ├── database/             # Инициализация и CRUD-операции Isar DB
-│   ├── ffmpeg/               # Построитель сложных filtergraph для FFmpeg CLI
-│   ├── router/               # Навигация GoRouter
-│   ├── services/             # Хранилище настроек (AppSettingsService)
-│   ├── theme/                # Темная тема оформления (TikTok Dark/Pink)
-│   └── utils/                # StoragePathHelper, FontExtractor, FileUtils
+│   ├── constants/            # Output resolutions (720x1280, 1080x1920)
+│   ├── database/             # Isar NoSQL database provider & schemas
+│   ├── ffmpeg/               # Complex FFmpeg filtergraph generator
+│   ├── router/               # Declarative GoRouter routing
+│   ├── services/             # Settings persistence (AppSettingsService)
+│   └── theme/                # TikTok Dark / Neon Pink UI theme
 │
 ├── features/
-│   ├── ai_assistant/         # Интеграция DeepSeek / Gemini, диалог ИИ Авто-Нарезки
-│   ├── dashboard/            # Главный экран очереди, карточки задач, запуск батча
-│   ├── presets/              # Модели пресетов, визуальный редактор наложения
+│   ├── ai_assistant/         # DeepSeek / Gemini / Ollama AI integration & prompt engineering
+│   ├── dashboard/            # Batch processing queue, progress trackers, workers
+│   ├── presets/              # Preset domain model & interactive canvas editor
 │   ├── processing/           # BatchQueueManager, NativeGpuEngine, FFmpegEngine
-│   ├── subtitles/            # WhisperService, пословные токены, генератор ASS
-│   ├── tasks/                # StateNotifier очереди Riverpod, модели VideoTask
-│   └── trimmer/              # Визуальная нарезка по таймлайну и меткам
+│   ├── subtitles/            # WhisperService (whisper.cpp C++ bridge, ASS generator)
+│   ├── tasks/                # Riverpod StateNotifier queue management
+│   └── trimmer/              # Visual timeline video trimmer & frame strip preview
 │
 android/app/src/main/kotlin/.../gpu/
-├── AudioTrackMuxer.kt        # Потоковый мультиплексор аудиодорожек
-├── EglCore.kt                # Инициализация EGL контекста и аппаратных Surface
-├── GlProgram.kt              # Компилятор шейдеров OpenGL ES 3.0
-├── GpuVideoRenderer.kt       # Шейдерный рендерер (Blur, караоке, баннеры, хуки)
-└── GpuVideoTranscoder.kt     # Zero-Copy MediaCodec транскодер (100-200 FPS)
+├── AudioTrackMuxer.kt        # Audio stream muxing
+├── EglCore.kt                # Hardware EGL 1.4 context & display surface
+├── GlProgram.kt              # OpenGL ES 3.0 shader program compiler
+├── GpuVideoRenderer.kt       # Multi-pass shader engine (Blur, noise, text, overlays)
+└── GpuVideoTranscoder.kt     # Zero-Copy MediaCodec hardware transcoder
 ```
 
----
-
-## Стек технологий
-
-- **Фреймворк**: Flutter (Dart 3.x, Android & Windows Desktop).
-- **Стейт-менеджмент**: Flutter Riverpod 2.x.
-- **База данных**: Isar Database (локальное NoSQL-хранилище).
-- **Аппаратный рендер (Android)**: Kotlin, MediaCodec, OpenGL ES 3.0, EGL 1.4.
-- **Видеообработка (Windows)**: FFmpeg CLI (`ffmpeg.exe`) + Nvidia NVENC (`h264_nvenc`).
-- **Нейросетевое распознавание**: Whisper C++ (`whisper-cli.exe`, модель ggml-tiny / base, cuBLAS + AVX2).
-- **ИИ-ассистент**: DeepSeek V3 / Gemini 3.7 Flash API.
-- **Видеопроигрыватель**: `video_player` + `fvp` (MDK/DirectX/Vulkan бэкенд).
-- **Навигация**: GoRouter.
+- **Frontend**: Flutter (Dart 3.x) with Flutter Riverpod 2.x.
+- **Database**: Isar NoSQL DB (ultra-fast embedded local database).
+- **Desktop Rendering**: FFmpeg CLI + Nvidia NVENC hardware acceleration.
+- **Mobile Rendering**: Native Kotlin, Android MediaCodec, OpenGL ES 3.0, EGL.
+- **AI / Speech**: Whisper.cpp (offline speech-to-text), DeepSeek V3, Google Gemini.
 
 ---
 
-## Системные требования
+## 📦 Installation & Quick Start
 
-- **Android**: Android 8.0 (API 26) и выше, поддержка OpenGL ES 3.0.
-- **Windows**: Windows 10/11 (64-bit).
-- **FFmpeg (для Windows)**: утилита `ffmpeg.exe` должна быть установлена и добавлена в системную переменную `%PATH%`.
-- **Видеокарта** _(для Windows, рекомендуется)_: Nvidia GeForce с поддержкой NVENC (GeForce GTX 1050 и новее). При отсутствии Nvidia рендеринг работает на процессоре (CPU).
+### Prerequisites
+- **Windows**: Windows 10/11 (64-bit). Ensure `ffmpeg.exe` is installed and in your system `%PATH%`.
+- **Android**: Android 8.0 (API level 26) or higher.
 
----
-
-## Установка и запуск
-
-### 1. Клонирование репозитория
-
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/XFN52/tt-video-automator.git
 cd tt-video-automator
 ```
 
-### 2. Установка зависимостей
-
+### 2. Install Dependencies & Build Code Generators
 ```bash
 flutter pub get
-```
-
-### 3. Генерация моделей базы данных Isar
-
-```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-### 4. Запуск и сборка на Android
-
+### 3. Build & Run for Windows Desktop
 ```bash
-# Запуск на подключенном устройстве
-flutter run -d <device_id>
-
-# Сборка Release APK
-flutter build apk --release
-```
-
-Готовый APK: `build/app/outputs/flutter-apk/app-release.apk`
-
-### 5. Запуск и сборка на Windows
-
-```bash
-# Запуск в режиме разработки
+# Debug mode
 flutter run -d windows
 
-# Сборка Release EXE
+# Compile standalone Release EXE
 flutter build windows
 ```
+*Compiled binary*: `build\windows\x64\runner\Release\tt_video_automator.exe`
 
-Готовый исполняемый файл: `build\windows\x64\runner\Release\tt_video_automator.exe`
+### 4. Build & Run for Android
+```bash
+# Run on connected device
+flutter run -d <device_id>
+
+# Compile Release APK
+flutter build apk --release
+```
+*Compiled APK*: `build/app/outputs/flutter-apk/app-release.apk`
 
 ---
 
-## Тестирование
+## 🧪 Testing & Code Quality
 
-Запуск модульных и виджет-тестов (проверка построения фильтров FFmpeg, сплит-скрина, EXIF метаданных, экранирования путей шрифтов):
-
+Run automated unit and widget test suites:
 ```bash
 flutter test
 ```
 
-Проверка статического анализатора кода:
-
+Run static analysis check:
 ```bash
 flutter analyze
 ```
 
 ---
 
-## Спецификация Автопостера
+## 🤝 Contributing
 
-Подробная архитектура удаленного автопостера на базе **Camoufox + Xray-core** и Telegram Admin Bot описана в [AUTOPOSTER_API_SPEC.md](AUTOPOSTER_API_SPEC.md).
+Contributions, feature requests, and bug reports are welcome!  
+Feel free to open an issue or submit a pull request.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ---
 
-## Лицензия
+## 📄 License
 
-MIT License. Проект создан для личного и коммерческого использования при автоматизации создания контента.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.  
+Suitable for both personal and commercial automation workflows.
+
+---
+
+<p align="center">
+  Built with ❤️ for Creators, Media Buyers & Automation Enthusiasts.
+</p>

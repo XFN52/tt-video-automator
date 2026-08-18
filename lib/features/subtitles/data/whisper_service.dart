@@ -328,9 +328,9 @@ class WhisperService {
 
         if (segments != null && segments.isNotEmpty) {
           for (final seg in segments) {
-            final segText = seg.text?.trim() ?? '';
-            final fromMs = seg.fromTs?.inMilliseconds ?? 0;
-            final toMs = seg.toTs?.inMilliseconds ?? (fromMs + 1000);
+            final segText = seg.text.trim();
+            final fromMs = seg.fromTs.inMilliseconds;
+            final toMs = seg.toTs.inMilliseconds;
             if (segText.isNotEmpty) {
               final words = segText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
               if (words.isNotEmpty) {
@@ -348,8 +348,8 @@ class WhisperService {
           }
         }
 
-      if (tokens.isEmpty && res.text != null && res.text!.trim().isNotEmpty) {
-        final words = res.text!.trim().split(RegExp(r'\s+'));
+      if (tokens.isEmpty && res.text.trim().isNotEmpty) {
+        final words = res.text.trim().split(RegExp(r'\s+'));
         const wordDurationMs = 300;
         for (int i = 0; i < words.length; i++) {
           tokens.add(SubtitleToken(
@@ -587,7 +587,7 @@ class WhisperService {
     final filename = cleanPath.split(RegExp(r'[\\/]')).last;
     final cleanName = filename.replaceAll(RegExp(r'[^\w\dа-яА-ЯёЁ\-\.]'), '_');
     final prefix = cleanName.length > 35 ? cleanName.substring(0, 35) : cleanName;
-    return '${prefix}_size${fileSize}$sliceSuffix';
+    return '${prefix}_size$fileSize$sliceSuffix';
   }
 
   static Future<void> _saveTokensToDiskCache(String videoPath, List<SubtitleToken> tokens) async {
@@ -643,7 +643,7 @@ class WhisperService {
 
       final tempDir = await getTemporaryDirectory();
       final key = _diskCacheKey(videoPath);
-      final wavPath = '${tempDir.path}/prewarm_${key}.wav';
+      final wavPath = '${tempDir.path}/prewarm_$key.wav';
 
       final svc = WhisperService();
       final dummyTask = VideoTask()

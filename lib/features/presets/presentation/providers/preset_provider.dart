@@ -24,6 +24,7 @@ final presetListProvider =
       ..autoNumbering = true
       ..audioPath = null
       ..useWhisper = true
+      ..showSubtitles = true
       ..subtitlePosition = SubtitlePosition.bottom
       ..subtitleYRatio = 0.877
       ..textHookYRatio = 0.686

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../../../core/utils/storage_path_helper.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../core/services/app_settings_service.dart';
@@ -40,6 +39,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
   late bool _autoNumbering;
   String? _audioPath;
   late bool _useWhisper;
+  late bool _showSubtitles;
   late double _audioVolume;
   late BannerPosition _bannerPosition;
   late double _bannerXRatio;
@@ -76,9 +76,10 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
     _autoNumbering = p?.autoNumbering ?? true;
     _audioPath = p?.audioPath;
     _useWhisper = p?.useWhisper ?? true;
+    _showSubtitles = p?.showSubtitles ?? true;
     _subtitlePosition = p?.subtitlePosition ?? SubtitlePosition.bottom;
     _audioVolume = p?.audioVolume ?? 0.08;
-    _textHookYRatio = p?.textHookYRatio ?? 0.08;
+    _textHookYRatio = p?.textHookYRatio ?? 0.686;
     _numberingYRatio = p?.numberingYRatio ?? 0.033;
     _subtitleYRatio = p?.subtitleYRatio ??
         // Конвертируем enum в коэффициент для обратной совместимости со
@@ -120,6 +121,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
         ..autoNumbering = _autoNumbering
         ..audioPath = _audioPath
         ..useWhisper = _useWhisper
+        ..showSubtitles = _showSubtitles
         ..subtitlePosition = _subtitleYRatio < 0.33
             ? SubtitlePosition.top
             : (_subtitleYRatio < 0.66
@@ -726,7 +728,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
           autoNumbering: _autoNumbering,
           numberingYRatio: _numberingYRatio,
           onNumberingYChanged: (v) => setState(() => _numberingYRatio = v),
-          showSubtitles: _useWhisper,
+          showSubtitles: _useWhisper && _showSubtitles,
           subtitleYRatio: _subtitleYRatio,
           onSubtitleYChanged: (v) => setState(() => _subtitleYRatio = v),
           onDragStateChanged: (isDragging) {
@@ -749,7 +751,7 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
                 if (_autoNumbering)
                   _legendRow(Icons.tag, '«Часть N» — под хуком (розовая рамка)'),
                 _legendRow(Icons.branding_watermark, 'Плашка — синяя рамка (ресайз — синий кружок под ней)'),
-                if (_useWhisper)
+                if (_useWhisper && _showSubtitles)
                   _legendRow(Icons.subtitles, 'Субтитры — зелёная рамка'),
               ],
             ),
@@ -869,15 +871,15 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
         ),
         const SizedBox(height: 20),
         const Text(
-          'Нейросетевые субтитры',
+          'Распознавание речи и субтитры',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Card(
           child: SwitchListTile(
-            title: const Text('Авто-субтитры (Whisper AI Karaoke)'),
+            title: const Text('Распознавание речи (Whisper AI)'),
             subtitle: const Text(
-              'Локальная оффлайн-генерация динамических караоке-субтитров с пословной подсветкой слов.',
+              'Локальная оффлайн-транскрипция аудио. Требуется для автогенерации ИИ-крючков, постов и субтитров.',
             ),
             value: _useWhisper,
             activeTrackColor: Theme.of(context).primaryColor,
@@ -889,41 +891,57 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen>
         if (_useWhisper) ...[
           const SizedBox(height: 12),
           Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.only(left: 16, top: 12, right: 16),
-                  child: Text(
-                    'Положение караоке-субтитров на экране',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                RadioGroup<SubtitlePosition>(
-                  groupValue: _subtitlePosition,
-                  onChanged: (val) {
-                    if (val != null) setState(() => _subtitlePosition = val);
-                  },
-                  child: const Column(
-                    children: [
-                      RadioListTile<SubtitlePosition>(
-                        title: Text('Снизу (стандарт TikTok / Shorts)'),
-                        value: SubtitlePosition.bottom,
-                      ),
-                      RadioListTile<SubtitlePosition>(
-                        title: Text('По центру экрана'),
-                        value: SubtitlePosition.center,
-                      ),
-                      RadioListTile<SubtitlePosition>(
-                        title: Text('Сверху'),
-                        value: SubtitlePosition.top,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            child: SwitchListTile(
+              title: const Text('Отображать субтитры на видео'),
+              subtitle: const Text(
+                'Впекать анимированные караоке-субтитры в видеоролик. Если выключить, субтитров на видео не будет, но Whisper всё равно распознает текст для ИИ-заголовков и постов.',
+              ),
+              value: _showSubtitles,
+              activeTrackColor: Theme.of(context).primaryColor,
+              onChanged: (val) {
+                setState(() => _showSubtitles = val);
+              },
             ),
           ),
+          if (_showSubtitles) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16, top: 12, right: 16),
+                    child: Text(
+                      'Положение караоке-субтитров на экране',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  RadioGroup<SubtitlePosition>(
+                    groupValue: _subtitlePosition,
+                    onChanged: (val) {
+                      if (val != null) setState(() => _subtitlePosition = val);
+                    },
+                    child: const Column(
+                      children: [
+                        RadioListTile<SubtitlePosition>(
+                          title: Text('Снизу (стандарт TikTok / Shorts)'),
+                          value: SubtitlePosition.bottom,
+                        ),
+                        RadioListTile<SubtitlePosition>(
+                          title: Text('По центру экрана'),
+                          value: SubtitlePosition.center,
+                        ),
+                        RadioListTile<SubtitlePosition>(
+                          title: Text('Сверху'),
+                          value: SubtitlePosition.top,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ],
     );
