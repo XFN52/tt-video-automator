@@ -193,7 +193,7 @@ scratch/
 !readme.md
 !README*.md
 !AUTOPOSTER_API_SPEC.md
-!GITHUB_PROMOTION_GUIDE.md
+GITHUB_PROMOTION_GUIDE.md
 
 # ==============================================================================
 # IDEs, AI Assistants & Text Editors
